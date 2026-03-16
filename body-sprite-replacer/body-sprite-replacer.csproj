@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>body_sprite_replacer</AssemblyName>
+    <RootNamespace>body_sprite_replacer</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <NoWarn>MSB3277</NoWarn>
+    <LangVersion>10</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>..\..\..\..\..\games\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>..\..\..\..\..\games\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\..\..\..\..\games\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>..\..\..\..\..\games\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>..\..\..\..\..\games\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+    </Reference>
+    <Reference Include="BepInEx">
+      <HintPath>..\..\..\..\..\games\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\BepInEx\core\BepInEx.dll</HintPath>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>..\..\..\..\..\games\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\BepInEx\core\0Harmony.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Analyzers" Version="1.0.8">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>

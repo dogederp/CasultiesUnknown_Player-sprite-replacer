@@ -1,0 +1,101 @@
+{
+  "version": 3,
+  "targets": {
+    ".NETStandard,Version=v2.1": {
+      "BepInEx.Analyzers/1.0.8": {
+        "type": "package"
+      }
+    }
+  },
+  "libraries": {
+    "BepInEx.Analyzers/1.0.8": {
+      "sha512": "xrfNmunsPhBx+vStTxLonq/aHkRrDH77c9tG/x3m5eejrKe5B0nf7cJPRRt6x330sGI0bLaPTtygdeHUgvI3wQ==",
+      "type": "package",
+      "path": "bepinex.analyzers/1.0.8",
+      "hasTools": true,
+      "files": [
+        ".nupkg.metadata",
+        "analyzers/dotnet/cs/BepInEx.Analyzers.CodeFixes.dll",
+        "analyzers/dotnet/cs/BepInEx.Analyzers.dll",
+        "bepinex.analyzers.1.0.8.nupkg.sha512",
+        "bepinex.analyzers.nuspec",
+        "tools/install.ps1",
+        "tools/uninstall.ps1"
+      ]
+    }
+  },
+  "projectFileDependencyGroups": {
+    ".NETStandard,Version=v2.1": [
+      "BepInEx.Analyzers >= 1.0.8"
+    ]
+  },
+  "packageFolders": {
+    "C:\\Users\\kpolj\\.nuget\\packages\\": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "D:\\SideProjects2\\Rider-projects\\CasultiesUnknown-Reskin-BepInEx\\Solution1\\body-sprite-replacer\\body-sprite-replacer.csproj",
+      "projectName": "body_sprite_replacer",
+      "projectPath": "D:\\SideProjects2\\Rider-projects\\CasultiesUnknown-Reskin-BepInEx\\Solution1\\body-sprite-replacer\\body-sprite-replacer.csproj",
+      "packagesPath": "C:\\Users\\kpolj\\.nuget\\packages\\",
+      "outputPath": "D:\\SideProjects2\\Rider-projects\\CasultiesUnknown-Reskin-BepInEx\\Solution1\\body-sprite-replacer\\obj\\",
+      "projectStyle": "PackageReference",
+      "configFilePaths": [
+        "C:\\Users\\kpolj\\AppData\\Roaming\\NuGet\\NuGet.Config"
+      ],
+      "originalTargetFrameworks": [
+        "netstandard2.1"
+      ],
+      "sources": {
+        "https://api.nuget.org/v3/index.json": {},
+        "https://nuget.bepinex.dev/v3/index.json": {}
+      },
+      "frameworks": {
+        "netstandard2.1": {
+          "targetAlias": "netstandard2.1",
+          "projectReferences": {}
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
+      }
+    },
+    "frameworks": {
+      "netstandard2.1": {
+        "targetAlias": "netstandard2.1",
+        "dependencies": {
+          "BepInEx.Analyzers": {
+            "suppressParent": "All",
+            "target": "Package",
+            "version": "[1.0.8, )"
+          }
+        },
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "frameworkReferences": {
+          "NETStandard.Library": {
+            "privateAssets": "all"
+          }
+        },
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.319\\RuntimeIdentifierGraph.json"
+      }
+    }
+  }
+}
