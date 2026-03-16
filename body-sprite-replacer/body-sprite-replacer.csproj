@@ -6,6 +6,11 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <NoWarn>MSB3277</NoWarn>
     <LangVersion>10</LangVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BepInEx.Analyzers" Version="1.0.8">
@@ -19,6 +24,7 @@
     </Reference>
     <Reference Include="Assembly-CSharp">
       <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="BepInEx">
       <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\BepInEx\core\BepInEx.dll</HintPath>
@@ -26,15 +32,29 @@
     </Reference>
     <Reference Include="UnityEngine">
       <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.ImageConversionModule">
       <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
       <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Builds\" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <OutputPath>Builds\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <OutputPath>Builds\</OutputPath>
+  </PropertyGroup>
+
 </Project>
