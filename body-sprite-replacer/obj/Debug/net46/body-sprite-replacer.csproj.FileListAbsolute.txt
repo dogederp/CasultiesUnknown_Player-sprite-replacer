@@ -1,3 +1,0 @@
-D:\SideProjects2\Rider-projects\CasultiesUnknown-Reskin-BepInEx\Solution1\body-sprite-replacer\obj\Debug\net46\body-sprite-replacer.csproj.AssemblyReference.cache
-D:\SideProjects2\Rider-projects\CasultiesUnknown-Reskin-BepInEx\Solution1\body-sprite-replacer\obj\Debug\net46\body-sprite-replacer.GeneratedMSBuildEditorConfig.editorconfig
-D:\SideProjects2\Rider-projects\CasultiesUnknown-Reskin-BepInEx\Solution1\body-sprite-replacer\obj\Debug\net46\body-sprite-replacer.csproj.CoreCompileInputs.cache
