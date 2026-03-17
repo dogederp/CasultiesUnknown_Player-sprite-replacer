@@ -48,13 +48,66 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Builds\" />
+    <Content Include="plugins\CustomSprites\Body\experimentCrus.png" />
+    <Content Include="plugins\CustomSprites\Body\experimentCrus.txt" />
+    <Content Include="plugins\CustomSprites\Body\experimentDownArm.png" />
+    <Content Include="plugins\CustomSprites\Body\experimentDownArm.txt" />
+    <Content Include="plugins\CustomSprites\Body\experimentDownTorso.png" />
+    <Content Include="plugins\CustomSprites\Body\experimentDownTorso.txt" />
+    <Content Include="plugins\CustomSprites\Body\experimentFoot.png" />
+    <Content Include="plugins\CustomSprites\Body\experimentFoot.txt" />
+    <Content Include="plugins\CustomSprites\Body\experimentHandB.png" />
+    <Content Include="plugins\CustomSprites\Body\experimentHandB.txt" />
+    <Content Include="plugins\CustomSprites\Body\experimentHandF.png" />
+    <Content Include="plugins\CustomSprites\Body\experimentHandF.txt" />
+    <Content Include="plugins\CustomSprites\Body\experimentTail.png" />
+    <Content Include="plugins\CustomSprites\Body\experimentTail.txt" />
+    <Content Include="plugins\CustomSprites\Body\experimentThigh.png" />
+    <Content Include="plugins\CustomSprites\Body\experimentThigh.txt" />
+    <Content Include="plugins\CustomSprites\Body\experimentUpArm.png" />
+    <Content Include="plugins\CustomSprites\Body\experimentUpArm.txt" />
+    <Content Include="plugins\CustomSprites\Body\experimentUpTorso.png" />
+    <Content Include="plugins\CustomSprites\Body\experimentUpTorso.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeClosed.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeGone.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeGoneHealed.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeHalfClosed.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeHalfClosedBack.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeHappy.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeLookBack.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeOpen.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyePanic.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeSad.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeSadBack.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeScared.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentEyeScaredBack.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHead.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHead.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadBack.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadBack.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadBackMouth.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadBackMouth.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadBackMouthMini.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadBackMouthMini.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured1.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured1.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured1Healed.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured1Healed.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured2.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured2.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured2Healed.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured2Healed.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured3.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured3.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured3Healed.png" />
+    <Content Include="plugins\CustomSprites\Head\experimentHeadDisfigured3Healed.txt" />
+    <Content Include="plugins\CustomSprites\Head\experimentNosebleed.png" />
   </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <OutputPath>Builds\</OutputPath>
+    <OutputPath>plugins\</OutputPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <OutputPath>Builds\</OutputPath>
+    <OutputPath>plugins\</OutputPath>
   </PropertyGroup>
 
 </Project>
