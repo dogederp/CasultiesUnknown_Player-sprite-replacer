@@ -1,0 +1,28 @@
+﻿# Build outputs
+**/bin/
+**/obj/
+Builds/
+
+# NuGet/package caches
+**/packages/
+*.nupkg
+*.snupkg
+
+# IDE / user-specific files
+.idea/
+.vs/
+*.user
+*.suo
+*.sln.iml
+*.DotSettings.user
+
+# Runtime/plugin build artifacts
+body-sprite-replacer/plugins/*.dll
+body-sprite-replacer/plugins/*.pdb
+body-sprite-replacer/plugins/*.deps.json
+body-sprite-replacer/plugins/*.runtimeconfig.json
+
+# Keep source sprite assets in the repo
+!body-sprite-replacer/plugins/CustomSprites/
+!body-sprite-replacer/plugins/CustomSprites/**
+
