@@ -38,6 +38,15 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 
 I have not tested what happens if this size restriction is not respected.
 
+## Finding sprites
+
+Links that have more custom sprites that I currently know of:
+
+https://skin.cat-bot.de/ (make sure to spit the Body and Head assets into separate files until I change the code to support one file)
+
+https://github.com/Paili-16/Scav-Prototype-The-Characters-Skins
+
+
 ## Notes
 
 - Editing `sharedassets1.assets` is **not** needed for this mod.
@@ -46,4 +55,10 @@ I have not tested what happens if this size restriction is not respected.
 
 - I am open to pull requests to improve the code.
 - Feel free to open an issue for questions or concerns.
+
+## Looking for an alternative?
+
+I found out about this project, give it a spin if my mod doesn't work out for you:
+
+https://github.com/05126619z/ChangeSkin
 
