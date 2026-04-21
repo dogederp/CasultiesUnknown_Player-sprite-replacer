@@ -1,5 +1,7 @@
 # Casualties Unknown - Player Sprite Replacer
 
+### 21-04-2026: I will be waiting with making changes until the game releases on steam!
+
 A small hobby mod for Casualties Unknown that swaps player body/head sprites at runtime using BepInEx.
 
 ## Compatibility
