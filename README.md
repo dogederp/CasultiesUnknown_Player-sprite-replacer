@@ -1,7 +1,5 @@
 # Casualties Unknown - Player Sprite Replacer
 
-### 21-04-2026: I will be waiting with making changes until the game releases on steam!
-
 A small hobby mod for Casualties Unknown that swaps player body/head sprites at runtime using BepInEx.
 
 ## Compatibility
@@ -28,13 +26,19 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
   - https://docs.bepinex.dev/articles/user_guide/installation/index.html
 - After BepInEx is installed, follow the steps above.
 
+## Usage
+
+- While in-game, press **Numpad 1 through 9** to instantly switch between different character sprites.
+- The mod will look for sprites in the `CustomSprites/st1` up to `CustomSprites/st9` folders.
+
 ## Sprite Credits
 
-- I copied the sprite files from GitHub user **Paili-16**. (I know I could have extracted them from the game files myself, but I wanted to save time.)
+- st1 contains Mottrew by beebigirl https://skin.cat-bot.de/?skinid=163&page=4#skin-163
+- (st2-st9) I copied the sprite files from GitHub user **Paili-16**. (I know I could have extracted them from the game files myself, but I wanted to save time.)
 
 ## Making Your Own Player Sprites
 
-1. Back up your current `CustomSprites/Body` and `CustomSprites/Head` folders first.
+1. Back up your current `CustomSprites/st1/Body` and `CustomSprites/st1/Head` folders (or any other `st1`-`st9` folder) first.
 2. Edit the images in those folders.
 3. Keep the same dimensions/image sizes as the originals. Do not change the file names.
 
@@ -57,6 +61,7 @@ https://github.com/Paili-16/Scav-Prototype-The-Characters-Skins
 
 - I am open to pull requests to improve the code.
 - Feel free to open an issue for questions or concerns.
+- Please consider giving this repository a star if you find it useful!
 
 ## Looking for an alternative?
 
