@@ -46,8 +46,13 @@
       <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="plugins\body_sprite_replacer.dll" />
     <Content Include="plugins\CustomSprites\Body\experimentCrus.png" />
     <Content Include="plugins\CustomSprites\Body\experimentCrus.txt" />
     <Content Include="plugins\CustomSprites\Body\experimentDownArm.png" />
