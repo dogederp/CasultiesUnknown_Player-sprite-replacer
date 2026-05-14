@@ -7,7 +7,7 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 ## Compatibility
 
 - Loader: **BepInEx 5.4.23.5**
-- Game version: **5.1 demo**
+- Game version: **6.1 demo**
 
 ## About This Project
 
