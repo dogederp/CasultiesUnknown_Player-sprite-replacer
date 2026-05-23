@@ -25,4 +25,5 @@ body-sprite-replacer/plugins/*.runtimeconfig.json
 # Keep source sprite assets in the repo
 !body-sprite-replacer/plugins/CustomSprites/
 !body-sprite-replacer/plugins/CustomSprites/**
+!body-sprite-replacer/plugins/body_sprite_replacer.dll
 
