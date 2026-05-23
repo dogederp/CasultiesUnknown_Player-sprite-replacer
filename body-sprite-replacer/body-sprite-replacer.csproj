@@ -50,9 +50,18 @@
       <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Content Include="plugins\body_sprite_replacer.dll" />
+    <EmbeddedResource Include="resources\placeholder.png" />
   </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath>plugins\</OutputPath>

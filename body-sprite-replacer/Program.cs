@@ -3,8 +3,10 @@ using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 using System.IO;
 using System.Collections.Generic;
+using System.Reflection;
 
 [BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.1.0")]
 public class SpriteReplacerPlugin : BaseUnityPlugin
@@ -53,6 +55,8 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         harmony.PatchAll();
 
         SceneManager.sceneLoaded += OnSceneLoaded;
+        SceneManager.sceneUnloaded += OnSceneUnloaded;
+        SceneManager.activeSceneChanged += OnActiveSceneChanged;
 
         var listenerObj = new GameObject("SpriteReplacerInputListener");
         DontDestroyOnLoad(listenerObj);
@@ -64,7 +68,21 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        Log.LogInfo($"Scene loaded: '{scene.name}' (mode: {mode})");
+        if (_menuButtonCanvas == null)
+            CreateMenuButton();
+        _menuButtonCanvas.SetActive(scene.name == "PreGen");
         ApplyToAll();
+    }
+
+    private static void OnSceneUnloaded(Scene scene)
+    {
+        Log.LogInfo($"Scene unloaded: '{scene.name}'");
+    }
+
+    private static void OnActiveSceneChanged(Scene oldScene, Scene newScene)
+    {
+        Log.LogInfo($"Active scene changed: '{oldScene.name}' -> '{newScene.name}'");
     }
 
     private class InputListener : MonoBehaviour
@@ -142,6 +160,66 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
             Log.LogInfo("Loaded sprite: " + spriteName);
         }
+    }
+
+    private static Sprite LoadEmbeddedSprite(string resourceName)
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        using (var stream = assembly.GetManifestResourceStream(resourceName))
+        {
+            if (stream == null)
+            {
+                Log.LogWarning($"Embedded resource '{resourceName}' not found");
+                return null;
+            }
+            byte[] data = new byte[stream.Length];
+            stream.Read(data, 0, data.Length);
+            Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Point;
+            ImageConversion.LoadImage(tex, data);
+            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 8f);
+            sprite.name = "MenuButtonPlaceholder";
+            return sprite;
+        }
+    }
+
+    private static GameObject _menuButtonCanvas;
+
+    private static void CreateMenuButton()
+    {
+        Sprite buttonSprite = LoadEmbeddedSprite("body_sprite_replacer.resources.placeholder.png");
+        if (buttonSprite == null)
+        {
+            Log.LogWarning("Failed to load menu button sprite");
+            return;
+        }
+
+        GameObject canvasObj = new GameObject("SpriteReplacerMenuCanvas");
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 9999;
+        canvasObj.AddComponent<CanvasScaler>();
+        canvasObj.AddComponent<GraphicRaycaster>();
+        DontDestroyOnLoad(canvasObj);
+        _menuButtonCanvas = canvasObj;
+
+        GameObject buttonObj = new GameObject("MenuButton");
+        buttonObj.transform.SetParent(canvasObj.transform, false);
+
+        RectTransform rectTransform = buttonObj.AddComponent<RectTransform>();
+        rectTransform.anchorMin = new Vector2(0, 1);
+        rectTransform.anchorMax = new Vector2(0, 1);
+        rectTransform.pivot = new Vector2(0, 1);
+        rectTransform.anchoredPosition = new Vector2(20, -20);
+        rectTransform.sizeDelta = new Vector2(64, 64);
+
+        Image image = buttonObj.AddComponent<Image>();
+        image.sprite = buttonSprite;
+        image.preserveAspect = true;
+
+        buttonObj.AddComponent<Button>();
+
+        Log.LogInfo("Menu button created");
     }
 
     private static void ApplyToAll()
