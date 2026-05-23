@@ -53,6 +53,10 @@ https://github.com/Paili-16/Scav-Prototype-The-Characters-Skins
 
 - Editing `sharedassets1.assets` is **not** needed for this mod.
 
+## Credits
+
+- Main idea of switching sprites using numpad thanks to rusiber1231 ([#1](https://github.com/dogederp/CasultiesUnknown_Player-sprite-replacer/issues/1))
+
 ## Contributing / Support
 
 - I am open to pull requests to improve the code.
