@@ -7,6 +7,7 @@ using UnityEngine.UI;
 using System.IO;
 using System.Collections.Generic;
 using System.Reflection;
+using System;
 
 [BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.1.0")]
 public class SpriteReplacerPlugin : BaseUnityPlugin
@@ -65,13 +66,13 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
         Log.LogInfo("Sprite Replacer loaded! Numpad 1-9 to switch characters.");
     }
-
+    
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         Log.LogInfo($"Scene loaded: '{scene.name}' (mode: {mode})");
         if (_menuButtonCanvas == null)
             CreateMenuButton();
-        _menuButtonCanvas.SetActive(scene.name == "PreGen");
+        _menuButtonCanvas.SetActive(false);
         ApplyToAll();
     }
 
@@ -89,6 +90,12 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     {
         private void Update()
         {
+            if (_menuButtonCanvas != null)
+            {
+                bool onMenu = SceneManager.GetActiveScene().name == "PreGen";
+                _menuButtonCanvas.SetActive(onMenu && IsMainMenuVisible());
+            }
+
             foreach (var kvp in KeyMapping)
             {
                 if (UnityEngine.Input.GetKeyDown(kvp.Key))
@@ -184,6 +191,21 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     }
 
     private static GameObject _menuButtonCanvas;
+    private static FieldInfo _didIntroField;
+
+    private static bool IsMainMenuVisible()
+    {
+        if (_didIntroField == null)
+        {
+            Type preRunType = typeof(Limb).Assembly.GetType("PreRunScript");
+            if (preRunType != null)
+                _didIntroField = preRunType.GetField("didIntro", BindingFlags.Static | BindingFlags.NonPublic);
+            if (_didIntroField == null)
+                Log.LogWarning("Could not find PreRunScript.didIntro via reflection");
+        }
+        if (_didIntroField == null) return false;
+        return (bool)_didIntroField.GetValue(null);
+    }
 
     private static void CreateMenuButton()
     {
@@ -224,15 +246,15 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static void ApplyToAll()
     {
-        foreach (var limb in Object.FindObjectsOfType<Limb>())
+        foreach (var limb in UnityEngine.Object.FindObjectsOfType<Limb>())
         {
             ApplyReplacement(limb);
         }
-        foreach (var tail in Object.FindObjectsOfType<TailScript>())
+        foreach (var tail in UnityEngine.Object.FindObjectsOfType<TailScript>())
         {
             ApplyReplacementToTail(tail);
         }
-        foreach (var face in Object.FindObjectsOfType<FacialExpression>())
+        foreach (var face in UnityEngine.Object.FindObjectsOfType<FacialExpression>())
         {
             ApplyReplacementToFace(face);
         }
