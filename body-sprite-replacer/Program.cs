@@ -191,6 +191,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     }
 
     private static GameObject _menuButtonCanvas;
+    private static GameObject _popupWindow;
     private static FieldInfo _didIntroField;
 
     private static bool IsMainMenuVisible()
@@ -239,9 +240,72 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         image.sprite = buttonSprite;
         image.preserveAspect = true;
 
-        buttonObj.AddComponent<Button>();
+        Button button = buttonObj.AddComponent<Button>();
+        button.onClick.AddListener(() => TogglePopupWindow());
 
         Log.LogInfo("Menu button created");
+    }
+
+    private static void TogglePopupWindow()
+    {
+        if (_popupWindow == null)
+            CreatePopupWindow();
+        else
+            _popupWindow.SetActive(!_popupWindow.activeSelf);
+    }
+
+    private static void CreatePopupWindow()
+    {
+        if (_menuButtonCanvas == null) return;
+
+        GameObject windowObj = new GameObject("PopupWindow");
+        windowObj.transform.SetParent(_menuButtonCanvas.transform, false);
+
+        RectTransform windowRect = windowObj.AddComponent<RectTransform>();
+        windowRect.anchorMin = new Vector2(0.5f, 0.5f);
+        windowRect.anchorMax = new Vector2(0.5f, 0.5f);
+        windowRect.pivot = new Vector2(0.5f, 0.5f);
+        windowRect.anchoredPosition = Vector2.zero;
+        windowRect.sizeDelta = new Vector2(400, 400);
+
+        Image windowBg = windowObj.AddComponent<Image>();
+        windowBg.color = new Color(0.1f, 0.1f, 0.1f, 0.95f);
+
+        // Close button — top-right corner
+        GameObject closeBtnObj = new GameObject("CloseButton");
+        closeBtnObj.transform.SetParent(windowObj.transform, false);
+
+        RectTransform closeRect = closeBtnObj.AddComponent<RectTransform>();
+        closeRect.anchorMin = new Vector2(1, 1);
+        closeRect.anchorMax = new Vector2(1, 1);
+        closeRect.pivot = new Vector2(1, 1);
+        closeRect.anchoredPosition = new Vector2(-10, -10);
+        closeRect.sizeDelta = new Vector2(40, 40);
+
+        Image closeImg = closeBtnObj.AddComponent<Image>();
+        closeImg.color = Color.red;
+
+        Button closeBtn = closeBtnObj.AddComponent<Button>();
+        closeBtn.onClick.AddListener(() => _popupWindow.SetActive(false));
+
+        // "X" label on close button
+        GameObject closeLabelObj = new GameObject("CloseLabel");
+        closeLabelObj.transform.SetParent(closeBtnObj.transform, false);
+
+        RectTransform labelRect = closeLabelObj.AddComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.sizeDelta = Vector2.zero;
+
+        Text closeText = closeLabelObj.AddComponent<Text>();
+        closeText.text = "X";
+        closeText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        closeText.fontSize = 24;
+        closeText.color = Color.white;
+        closeText.alignment = TextAnchor.MiddleCenter;
+
+        _popupWindow = windowObj;
+        Log.LogInfo("Popup window created");
     }
 
     private static void ApplyToAll()

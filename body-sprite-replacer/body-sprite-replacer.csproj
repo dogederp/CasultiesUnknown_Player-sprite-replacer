@@ -58,6 +58,10 @@
       <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.UIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>..\..\CasualtiesUnknownV5.1Demo_spritemod_16-03-2026\CasualtiesUnknownV5.1Demo\CasualtiesUnknownDemo\CasualtiesUnknown_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Content Include="plugins\body_sprite_replacer.dll" />
