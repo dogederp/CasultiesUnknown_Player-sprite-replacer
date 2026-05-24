@@ -75,6 +75,16 @@ https://github.com/Paili-16/Scav-Prototype-The-Characters-Skins
 - Feel free to open an issue for questions or concerns.
 - Please consider giving this repository a star if you find it useful!
 
+## Star History
+
+<a href="https://www.star-history.com/?repos=dogederp%2FCasultiesUnknown_Player-sprite-replacer&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=dogederp/CasultiesUnknown_Player-sprite-replacer&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=dogederp/CasultiesUnknown_Player-sprite-replacer&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=dogederp/CasultiesUnknown_Player-sprite-replacer&type=date&legend=top-left" />
+ </picture>
+</a>
+
 ## Looking for an alternative?
 
 I found out about this project, give it a spin if my mod doesn't work out for you:
