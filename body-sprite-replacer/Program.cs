@@ -189,6 +189,8 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             return sprite;
         }
     }
+    
+    // --- menu button stuff ---
 
     private static GameObject _menuButtonCanvas;
     private static GameObject _popupWindow;
@@ -266,7 +268,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         windowRect.anchorMax = new Vector2(0.5f, 0.5f);
         windowRect.pivot = new Vector2(0.5f, 0.5f);
         windowRect.anchoredPosition = Vector2.zero;
-        windowRect.sizeDelta = new Vector2(400, 400);
+        windowRect.sizeDelta = new Vector2(500, 500);
 
         Image windowBg = windowObj.AddComponent<Image>();
         windowBg.color = new Color(0.1f, 0.1f, 0.1f, 0.95f);
@@ -304,8 +306,230 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         closeText.color = Color.white;
         closeText.alignment = TextAnchor.MiddleCenter;
 
+        BuildCharacterGrid(windowObj);
+
         _popupWindow = windowObj;
         Log.LogInfo("Popup window created");
+    }
+
+    // --- Character grid ---
+
+    private static void BuildCharacterGrid(GameObject window)
+    {
+        string[] characters = GetAvailableCharacters();
+        if (characters.Length == 0) return;
+
+        GameObject gridObj = new GameObject("CharacterGrid");
+        gridObj.transform.SetParent(window.transform, false);
+
+        RectTransform gridRect = gridObj.AddComponent<RectTransform>();
+        gridRect.anchorMin = Vector2.zero;
+        gridRect.anchorMax = Vector2.one;
+        gridRect.pivot = new Vector2(0.5f, 1f);
+        gridRect.anchoredPosition = new Vector2(0, -55f);
+        gridRect.sizeDelta = new Vector2(-20f, -75f);
+
+        int cols = 3;
+        float cellSize = 110f;
+        float spacing = 10f;
+        float gridWidth = cols * cellSize + (cols - 1) * spacing;
+        float startX = -(gridWidth / 2f) + cellSize / 2f;
+
+        for (int i = 0; i < characters.Length; i++)
+        {
+            int row = i / cols;
+            int col = i % cols;
+
+            float x = startX + col * (cellSize + spacing);
+            float y = -(row * (cellSize + spacing) + cellSize / 2f);
+
+            CreateCharacterCell(gridObj, characters[i], x, y, cellSize);
+        }
+    }
+
+    private static void CreateCharacterCell(GameObject parent, string character, float x, float y, float size)
+    {
+        GameObject cellObj = new GameObject("Cell_" + character);
+        cellObj.transform.SetParent(parent.transform, false);
+
+        RectTransform cellRect = cellObj.AddComponent<RectTransform>();
+        cellRect.anchorMin = new Vector2(0.5f, 1f);
+        cellRect.anchorMax = new Vector2(0.5f, 1f);
+        cellRect.pivot = new Vector2(0.5f, 0.5f);
+        cellRect.anchoredPosition = new Vector2(x, y);
+        cellRect.sizeDelta = new Vector2(size, size);
+
+        Image bgImg = cellObj.AddComponent<Image>();
+        bgImg.color = new Color(0.2f, 0.2f, 0.2f, 0.9f);
+
+        Button btn = cellObj.AddComponent<Button>();
+        btn.onClick.AddListener(() => { Log.LogInfo($"Clicked character: {character}"); });
+
+        // Highlight on hover
+        ColorBlock colors = btn.colors;
+        colors.highlightedColor = new Color(0.4f, 0.4f, 0.4f, 1f);
+        colors.pressedColor = new Color(0.15f, 0.15f, 0.15f, 1f);
+        btn.colors = colors;
+
+        Sprite preview = ComposeCharacterPreview(character);
+        if (preview != null)
+        {
+            GameObject imgObj = new GameObject("PreviewImage");
+            imgObj.transform.SetParent(cellObj.transform, false);
+
+            RectTransform imgRect = imgObj.AddComponent<RectTransform>();
+            imgRect.anchorMin = new Vector2(0.5f, 0.5f);
+            imgRect.anchorMax = new Vector2(0.5f, 0.5f);
+            imgRect.pivot = new Vector2(0.5f, 0.5f);
+            imgRect.anchoredPosition = new Vector2(0, 8f);
+            imgRect.sizeDelta = new Vector2(size - 16f, size - 30f);
+
+            Image img = imgObj.AddComponent<Image>();
+            img.sprite = preview;
+            img.preserveAspect = true;
+        }
+
+        // Character name label
+        GameObject labelObj = new GameObject("CharacterLabel");
+        labelObj.transform.SetParent(cellObj.transform, false);
+
+        RectTransform lblRect = labelObj.AddComponent<RectTransform>();
+        lblRect.anchorMin = new Vector2(0f, 0f);
+        lblRect.anchorMax = new Vector2(1f, 0f);
+        lblRect.pivot = new Vector2(0.5f, 0f);
+        lblRect.anchoredPosition = new Vector2(0f, 5f);
+        lblRect.sizeDelta = new Vector2(0f, 20f);
+
+        Text lbl = labelObj.AddComponent<Text>();
+        lbl.text = character;
+        lbl.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        lbl.fontSize = 14;
+        lbl.color = Color.white;
+        lbl.alignment = TextAnchor.MiddleCenter;
+    }
+
+    // --- Character scanning & compositing ---
+
+    private static string[] GetAvailableCharacters()
+    {
+        var chars = new List<string>();
+        string basePath = Path.Combine(Paths.PluginPath, "CustomSprites");
+        if (!Directory.Exists(basePath)) return chars.ToArray();
+
+        foreach (string dir in Directory.GetDirectories(basePath))
+        {
+            string name = Path.GetFileName(dir);
+            if (name.StartsWith("st"))
+                chars.Add(name);
+        }
+        chars.Sort();
+        return chars.ToArray();
+    }
+
+    private static Dictionary<string, Sprite> LoadCharacterPreviewSprites(string character)
+    {
+        var dict = new Dictionary<string, Sprite>();
+        string bodyPath = Path.Combine(Paths.PluginPath, "CustomSprites", character, "Body");
+        string headPath = Path.Combine(Paths.PluginPath, "CustomSprites", character, "Head");
+        if (Directory.Exists(bodyPath)) LoadSpritesFromFolderToDict(bodyPath, dict);
+        if (Directory.Exists(headPath)) LoadSpritesFromFolderToDict(headPath, dict);
+        return dict;
+    }
+
+    private static void LoadSpritesFromFolderToDict(string folderPath, Dictionary<string, Sprite> dict)
+    {
+        foreach (string file in Directory.GetFiles(folderPath, "*.png"))
+        {
+            string spriteName = Path.GetFileNameWithoutExtension(file);
+            if (dict.ContainsKey(spriteName)) continue;
+
+            byte[] data = File.ReadAllBytes(file);
+            Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Point;
+            ImageConversion.LoadImage(tex, data);
+
+            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 8f);
+            sprite.name = spriteName;
+            dict[spriteName] = sprite;
+        }
+    }
+
+    private static Sprite ComposeCharacterPreview(string character)
+    {
+        var sprites = LoadCharacterPreviewSprites(character);
+
+        const int canvasW = 48, canvasH = 80;
+        Texture2D composite = new Texture2D(canvasW, canvasH, TextureFormat.RGBA32, false);
+        composite.filterMode = FilterMode.Point;
+
+        Color[] clear = new Color[canvasW * canvasH];
+        for (int i = 0; i < clear.Length; i++) clear[i] = Color.clear;
+        composite.SetPixels(clear);
+
+        // Standing-pose layout: (spriteName, x, y) in Texture2D bottom-left coords
+        // Drawn back-to-front so later parts overlay earlier ones
+        var layout = new (string name, int x, int y)[]
+        {
+            ("experimentThigh",      16, 25),   // left thigh
+            ("experimentThigh",      26, 25),   // right thigh
+            ("experimentDownTorso",  19, 38),
+            ("experimentUpTorso",    19, 50),
+            ("experimentCrus",       17, 15),   // left crus
+            ("experimentCrus",       27, 15),   // right crus
+            ("experimentFoot",       16,  0),   // left foot
+            ("experimentFoot",       26,  0),   // right foot
+            ("experimentUpArm",      11, 50),   // left upper arm
+            ("experimentUpArm",      31, 50),   // right upper arm
+            ("experimentDownArm",    11, 34),   // left lower arm
+            ("experimentDownArm",    31, 34),   // right lower arm
+            ("experimentHandF",      10, 28),   // left hand
+            ("experimentHandF",      31, 28),   // right hand
+            ("experimentHead",       10, 64),   // head (top)
+        };
+
+        foreach (var (name, x, y) in layout)
+        {
+            if (sprites.TryGetValue(name, out Sprite part))
+                BlitSprite(composite, part, x, y);
+        }
+
+        composite.Apply();
+        Sprite preview = Sprite.Create(composite, new Rect(0, 0, canvasW, canvasH), new Vector2(0.5f, 0.5f), 8f);
+        preview.name = character + "_preview";
+        return preview;
+    }
+
+    private static void BlitSprite(Texture2D dst, Sprite src, int dstX, int dstY)
+    {
+        Texture2D srcTex = src.texture;
+        int srcW = (int)src.rect.width;
+        int srcH = (int)src.rect.height;
+        int srcX = (int)src.rect.x;
+        int srcY = (int)src.rect.y;
+
+        if (srcW <= 0 || srcH <= 0) return;
+
+        Color[] pixels;
+        try { pixels = srcTex.GetPixels(srcX, srcY, srcW, srcH); }
+        catch { return; }
+
+        int dstW = dst.width;
+        int dstH = dst.height;
+
+        for (int py = 0; py < srcH; py++)
+        {
+            for (int px = 0; px < srcW; px++)
+            {
+                int dx = dstX + px;
+                int dy = dstY + py;
+                if (dx >= 0 && dx < dstW && dy >= 0 && dy < dstH)
+                {
+                    Color c = pixels[py * srcW + px];
+                    if (c.a > 0.01f)
+                        dst.SetPixel(dx, dy, c);
+                }
+            }
+        }
     }
 
     private static void ApplyToAll()
