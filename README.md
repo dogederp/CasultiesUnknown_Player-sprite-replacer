@@ -74,6 +74,7 @@ https://github.com/Paili-16/Scav-Prototype-The-Characters-Skins
 - I am open to pull requests to improve the code.
 - Feel free to open an issue for questions or concerns.
 - Please consider giving this repository a star if you find it useful!
+- Buy me a coffee: https://buymeacoffee.com/dogederp
 
 ## Star History
 
