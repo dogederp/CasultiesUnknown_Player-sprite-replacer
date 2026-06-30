@@ -328,10 +328,46 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         closeText.color = Color.white;
         closeText.alignment = TextAnchor.MiddleCenter;
 
-        BuildCharacterGrid(windowObj);
+        string[] characters = GetAvailableCharacters();
+        if (characters.Length > 0)
+            BuildCharacterGrid(windowObj);
+        else
+            BuildEmptyStateMessage(windowObj);
 
         _popupWindow = windowObj;
         Log.LogInfo("Popup window created");
+    }
+
+    private static void BuildEmptyStateMessage(GameObject window)
+    {
+        GameObject msgObj = new GameObject("EmptyStateMessage");
+        msgObj.transform.SetParent(window.transform, false);
+
+        RectTransform msgRect = msgObj.AddComponent<RectTransform>();
+        msgRect.anchorMin = new Vector2(0, 0);
+        msgRect.anchorMax = new Vector2(1, 1);
+        msgRect.pivot = new Vector2(0.5f, 0.5f);
+        msgRect.anchoredPosition = Vector2.zero;
+        msgRect.sizeDelta = new Vector2(-40f, -80f);
+
+        Text msg = msgObj.AddComponent<Text>();
+        msg.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        msg.fontSize = 18;
+        msg.color = Color.white;
+        msg.alignment = TextAnchor.UpperCenter;
+        msg.horizontalOverflow = HorizontalWrapMode.Wrap;
+        msg.verticalOverflow = VerticalWrapMode.Overflow;
+        msg.text =
+            "No custom sprites found.\n\n" +
+            "To add your own skins:\n\n" +
+            "1. Open the CustomSprites folder inside this mod's plugin directory.\n" +
+            "2. Choose a slot: st1 through st9.\n" +
+            "3. Place your .png files into that slot's Body or Head subfolder.\n" +
+            "4. Each PNG filename must match the original in-game sprite name.\n" +
+            "5. Press Numpad 1-9 to load and switch to that slot in-game.\n\n" +
+            "Example: CustomSprites/st1/Body/experimentCrus.png";
+
+        Log.LogWarning("No characters with sprites available; showing empty-state instructions.");
     }
 
     // --- Character grid ---
@@ -441,7 +477,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         foreach (string dir in Directory.GetDirectories(basePath))
         {
             string name = Path.GetFileName(dir);
-            if (name.StartsWith("st"))
+            if (name.StartsWith("st") && CharacterFolderExists(name))
                 chars.Add(name);
         }
         chars.Sort();
