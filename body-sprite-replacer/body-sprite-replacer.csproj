@@ -67,6 +67,9 @@
     <Content Include="plugins\body_sprite_replacer.dll" />
     <EmbeddedResource Include="resources\placeholder.png" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="plugins\" />
+  </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath>plugins\</OutputPath>
   </PropertyGroup>

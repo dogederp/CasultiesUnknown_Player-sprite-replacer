@@ -34,6 +34,8 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     {
         Log = Logger;
 
+        EnsureCustomSpritesStructure();
+
         if (CharacterFolderExists("st1"))
         {
             LoadCharacterSprites("st1");
@@ -125,8 +127,28 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     private static bool CharacterFolderExists(string character)
     {
         string basePath = Path.Combine(Paths.PluginPath, "CustomSprites", character);
-        return Directory.Exists(Path.Combine(basePath, "Body")) ||
-               Directory.Exists(Path.Combine(basePath, "Head"));
+        string bodyPath = Path.Combine(basePath, "Body");
+        string headPath = Path.Combine(basePath, "Head");
+        // Empty prepared dirs don't count as an available character; need actual png sprites.
+        return (Directory.Exists(bodyPath) && Directory.GetFiles(bodyPath, "*.png").Length > 0) ||
+               (Directory.Exists(headPath) && Directory.GetFiles(headPath, "*.png").Length > 0);
+    }
+
+    private static void EnsureCustomSpritesStructure()
+    {
+        string root = Path.Combine(Paths.PluginPath, "CustomSprites");
+        bool created = !Directory.Exists(root);
+        Directory.CreateDirectory(root);
+
+        for (int i = 1; i <= 9; i++)
+        {
+            string st = Path.Combine(root, "st" + i);
+            Directory.CreateDirectory(Path.Combine(st, "Body"));
+            Directory.CreateDirectory(Path.Combine(st, "Head"));
+        }
+
+        if (created)
+            Log.LogInfo("Created CustomSprites folder with st1..st9/Body|Head subfolders.");
     }
 
     private static string FindFirstAvailableCharacter()
