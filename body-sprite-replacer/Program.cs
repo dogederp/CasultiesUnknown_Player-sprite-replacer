@@ -429,7 +429,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         colors.pressedColor = new Color(0.15f, 0.15f, 0.15f, 1f);
         btn.colors = colors;
 
-        Sprite preview = ComposeCharacterPreview(character);
+        Sprite preview = GetHeadPreviewSprite(character);
         if (preview != null)
         {
             GameObject imgObj = new GameObject("PreviewImage");
@@ -555,6 +555,14 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         Sprite preview = Sprite.Create(composite, new Rect(0, 0, canvasW, canvasH), new Vector2(0.5f, 0.5f), 8f);
         preview.name = character + "_preview";
         return preview;
+    }
+
+    private static Sprite GetHeadPreviewSprite(string character)
+    {
+        var sprites = LoadCharacterPreviewSprites(character);
+        if (sprites.TryGetValue("experimentHead", out Sprite head))
+            return head;
+        return null;
     }
 
     private static void BlitSprite(Texture2D dst, Sprite src, int dstX, int dstY)
