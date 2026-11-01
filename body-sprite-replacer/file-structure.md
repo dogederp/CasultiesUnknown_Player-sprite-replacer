@@ -4,6 +4,10 @@ BepInEx/
 └── plugins/
     ├── body_sprite_replacer.dll
     └── CustomSprites/
+        ├── backups/
+        │   └── st1_20261031_120000/
+        │       ├── Body/
+        │       └── Head/
         ├── st1/
         │   ├── Body/
         │   │   ├── some_body_sprite.png
@@ -16,3 +20,5 @@ BepInEx/
         │   └── Head/
         └── ... (up to st9)
 ```
+
+The **Switch** button writes a timestamped copy of the target slot to `backups/` before it replaces files. The mod creates `backups/` on demand. Each backup keeps the old `Body` and `Head` folders.

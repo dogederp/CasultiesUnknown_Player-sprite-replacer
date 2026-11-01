@@ -1,7 +1,9 @@
 using BepInEx;
+using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using System.IO;
@@ -9,13 +11,20 @@ using System.Collections.Generic;
 using System.Reflection;
 using System;
 
-[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.1.0")]
+[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.2.1")]
+[BepInDependency("net.cucorelib", BepInDependency.DependencyFlags.SoftDependency)]
 public class SpriteReplacerPlugin : BaseUnityPlugin
 {
+    public const int SlotCount = 9;
+
     public static string SpritesPath => Path.Combine(Paths.PluginPath, "CustomSprites");
     public static Dictionary<string, Sprite> LoadedSprites = new Dictionary<string, Sprite>();
-    private static string _currentCharacter = "st1";
     internal static ManualLogSource Log;
+
+    private static string _activeSlot = "st1";
+    public static string ActiveSlot => _activeSlot;
+
+    private static ConfigEntry<string> _activeSlotSetting;
 
     private static readonly Dictionary<KeyCode, string> KeyMapping = new Dictionary<KeyCode, string>
     {
@@ -34,10 +43,20 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     {
         Log = Logger;
 
+        _activeSlotSetting = Config.Bind("General", "ActiveSlot", "st1",
+            "The CustomSprites slot that loads at startup. Values: st1 to st9.");
+
         EnsureCustomSpritesStructure();
 
-        if (CharacterFolderExists("st1"))
+        string savedSlot = _activeSlotSetting.Value;
+        if (IsValidSlot(savedSlot) && CharacterFolderExists(savedSlot))
         {
+            _activeSlot = savedSlot;
+            LoadCharacterSprites(savedSlot);
+        }
+        else if (CharacterFolderExists("st1"))
+        {
+            _activeSlot = "st1";
             LoadCharacterSprites("st1");
         }
         else
@@ -45,7 +64,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             string firstAvailable = FindFirstAvailableCharacter();
             if (firstAvailable != null)
             {
-                _currentCharacter = firstAvailable;
+                _activeSlot = firstAvailable;
                 LoadCharacterSprites(firstAvailable);
             }
             else
@@ -68,13 +87,17 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
         Log.LogInfo("Sprite Replacer loaded! Numpad 1-9 to switch characters.");
     }
-    
+
+    private void Start()
+    {
+        CoreLibIntegration.TryRegister();
+    }
+
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         Log.LogInfo($"Scene loaded: '{scene.name}' (mode: {mode})");
-        if (_menuButtonCanvas == null)
-            CreateMenuButton();
-        _menuButtonCanvas.SetActive(false);
+        SkinMenuUI.EnsureCanvas();
+        SkinMenuUI.SetVisible(false);
         ApplyToAll();
     }
 
@@ -92,41 +115,84 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     {
         private void Update()
         {
-            if (_menuButtonCanvas != null)
-            {
-                bool onMenu = SceneManager.GetActiveScene().name == "PreGen";
-                _menuButtonCanvas.SetActive(onMenu && IsMainMenuVisible());
-            }
+            SkinMenuUI.SetVisible(MenuGate.ShouldShowButton());
+
+            if (SkinMenuUI.IsFolderBrowserOpen) return;
+            if (IsInputFieldFocused()) return;
 
             foreach (var kvp in KeyMapping)
             {
                 if (UnityEngine.Input.GetKeyDown(kvp.Key))
                 {
-                    string target = kvp.Value;
-                    if (CharacterFolderExists(target))
-                    {
-                        if (_currentCharacter != target)
-                        {
-                            Log.LogInfo($"Keypad {kvp.Key} -> {target}");
-                            _currentCharacter = target;
-                            LoadCharacterSprites(target);
-                            ApplyToAll();
-                            Log.LogInfo("Switched to " + target);
-                        }
-                    }
-                    else
-                    {
-                        Log.LogWarning($"Character folder for {target} not found");
-                    }
+                    SwitchToSlot(kvp.Value);
                     break;
                 }
             }
         }
+
+        private static bool IsInputFieldFocused()
+        {
+            EventSystem eventSystem = EventSystem.current;
+            if (eventSystem == null) return false;
+
+            GameObject selected = eventSystem.currentSelectedGameObject;
+            if (selected == null) return false;
+
+            InputField field = selected.GetComponentInParent<InputField>();
+            return field != null && field.isFocused;
+        }
     }
 
-    private static bool CharacterFolderExists(string character)
+    public static bool SwitchToSlot(string slot, bool forceReload = false)
     {
-        string basePath = Path.Combine(Paths.PluginPath, "CustomSprites", character);
+        if (!IsValidSlot(slot))
+        {
+            Log.LogWarning("Invalid slot: " + slot);
+            return false;
+        }
+
+        if (!forceReload && slot == _activeSlot && LoadedSprites.Count > 0)
+        {
+            SkinMenuUI.RefreshSelection();
+            return true;
+        }
+
+        if (!CharacterFolderExists(slot))
+        {
+            Log.LogWarning("Character folder for " + slot + " not found");
+            return false;
+        }
+
+        _activeSlot = slot;
+        SaveActiveSlot(slot);
+        CoreLibIntegration.StoreActiveSlot(slot);
+        LoadCharacterSprites(slot);
+        ApplyToAll();
+        SkinMenuUI.RefreshSelection();
+        Log.LogInfo("Switched to " + slot);
+        return true;
+    }
+
+    internal static bool IsValidSlot(string slot)
+    {
+        return !string.IsNullOrEmpty(slot) && slot.Length == 3 &&
+               slot.StartsWith("st", StringComparison.Ordinal) &&
+               slot[2] >= '1' && slot[2] <= '9';
+    }
+
+    private static void SaveActiveSlot(string slot)
+    {
+        if (_activeSlotSetting == null) return;
+        if (_activeSlotSetting.Value == slot) return;
+
+        _activeSlotSetting.Value = slot;
+        if (_activeSlotSetting.ConfigFile != null)
+            _activeSlotSetting.ConfigFile.Save();
+    }
+
+    internal static bool CharacterFolderExists(string character)
+    {
+        string basePath = Path.Combine(SpritesPath, character);
         string bodyPath = Path.Combine(basePath, "Body");
         string headPath = Path.Combine(basePath, "Head");
         // Empty prepared dirs don't count as an available character; need actual png sprites.
@@ -136,11 +202,11 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static void EnsureCustomSpritesStructure()
     {
-        string root = Path.Combine(Paths.PluginPath, "CustomSprites");
+        string root = SpritesPath;
         bool created = !Directory.Exists(root);
         Directory.CreateDirectory(root);
 
-        for (int i = 1; i <= 9; i++)
+        for (int i = 1; i <= SlotCount; i++)
         {
             string st = Path.Combine(root, "st" + i);
             Directory.CreateDirectory(Path.Combine(st, "Body"));
@@ -153,7 +219,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static string FindFirstAvailableCharacter()
     {
-        for (int i = 1; i <= 9; i++)
+        for (int i = 1; i <= SlotCount; i++)
         {
             string c = "st" + i;
             if (CharacterFolderExists(c))
@@ -172,7 +238,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static void LoadSpritesFromFolder(string character, string subfolder)
     {
-        string path = Path.Combine(Paths.PluginPath, "CustomSprites", character, subfolder);
+        string path = Path.Combine(SpritesPath, character, subfolder);
         if (!Directory.Exists(path)) return;
 
         foreach (string file in Directory.GetFiles(path, "*.png"))
@@ -181,7 +247,12 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             byte[] data = File.ReadAllBytes(file);
             Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             tex.filterMode = FilterMode.Point;
-            ImageConversion.LoadImage(tex, data);
+            if (!ImageConversion.LoadImage(tex, data))
+            {
+                UnityEngine.Object.Destroy(tex);
+                Log.LogWarning("Could not decode sprite: " + file);
+                continue;
+            }
 
             Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 8f);
             sprite.name = spriteName;
@@ -191,7 +262,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         }
     }
 
-    private static Sprite LoadEmbeddedSprite(string resourceName)
+    internal static Sprite LoadEmbeddedSprite(string resourceName)
     {
         var assembly = Assembly.GetExecutingAssembly();
         using (var stream = assembly.GetManifestResourceStream(resourceName))
@@ -205,396 +276,15 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             stream.Read(data, 0, data.Length);
             Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             tex.filterMode = FilterMode.Point;
-            ImageConversion.LoadImage(tex, data);
+            if (!ImageConversion.LoadImage(tex, data))
+            {
+                UnityEngine.Object.Destroy(tex);
+                Log.LogWarning("Could not decode embedded sprite: " + resourceName);
+                return null;
+            }
             Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 8f);
             sprite.name = "MenuButtonPlaceholder";
             return sprite;
-        }
-    }
-    
-    // --- menu button stuff ---
-
-    private static GameObject _menuButtonCanvas;
-    private static GameObject _popupWindow;
-    private static FieldInfo _didIntroField;
-
-    private static bool IsMainMenuVisible()
-    {
-        if (_didIntroField == null)
-        {
-            Type preRunType = typeof(Limb).Assembly.GetType("PreRunScript");
-            if (preRunType != null)
-                _didIntroField = preRunType.GetField("didIntro", BindingFlags.Static | BindingFlags.NonPublic);
-            if (_didIntroField == null)
-                Log.LogWarning("Could not find PreRunScript.didIntro via reflection");
-        }
-        if (_didIntroField == null) return false;
-        return (bool)_didIntroField.GetValue(null);
-    }
-
-    private static void CreateMenuButton()
-    {
-        Sprite buttonSprite = LoadEmbeddedSprite("body_sprite_replacer.resources.placeholder.png");
-        if (buttonSprite == null)
-        {
-            Log.LogWarning("Failed to load menu button sprite");
-            return;
-        }
-
-        GameObject canvasObj = new GameObject("SpriteReplacerMenuCanvas");
-        Canvas canvas = canvasObj.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 9999;
-        canvasObj.AddComponent<CanvasScaler>();
-        canvasObj.AddComponent<GraphicRaycaster>();
-        DontDestroyOnLoad(canvasObj);
-        _menuButtonCanvas = canvasObj;
-
-        GameObject buttonObj = new GameObject("MenuButton");
-        buttonObj.transform.SetParent(canvasObj.transform, false);
-
-        RectTransform rectTransform = buttonObj.AddComponent<RectTransform>();
-        rectTransform.anchorMin = new Vector2(0, 1);
-        rectTransform.anchorMax = new Vector2(0, 1);
-        rectTransform.pivot = new Vector2(0, 1);
-        rectTransform.anchoredPosition = new Vector2(20, -20);
-        rectTransform.sizeDelta = new Vector2(64, 64);
-
-        Image image = buttonObj.AddComponent<Image>();
-        image.sprite = buttonSprite;
-        image.preserveAspect = true;
-
-        Button button = buttonObj.AddComponent<Button>();
-        button.onClick.AddListener(() => TogglePopupWindow());
-
-        Log.LogInfo("Menu button created");
-    }
-
-    private static void TogglePopupWindow()
-    {
-        if (_popupWindow == null)
-            CreatePopupWindow();
-        else
-            _popupWindow.SetActive(!_popupWindow.activeSelf);
-    }
-
-    private static void CreatePopupWindow()
-    {
-        if (_menuButtonCanvas == null) return;
-
-        GameObject windowObj = new GameObject("PopupWindow");
-        windowObj.transform.SetParent(_menuButtonCanvas.transform, false);
-
-        RectTransform windowRect = windowObj.AddComponent<RectTransform>();
-        windowRect.anchorMin = new Vector2(0.5f, 0.5f);
-        windowRect.anchorMax = new Vector2(0.5f, 0.5f);
-        windowRect.pivot = new Vector2(0.5f, 0.5f);
-        windowRect.anchoredPosition = Vector2.zero;
-        windowRect.sizeDelta = new Vector2(500, 500);
-
-        Image windowBg = windowObj.AddComponent<Image>();
-        windowBg.color = new Color(0.1f, 0.1f, 0.1f, 0.95f);
-
-        // Close button — top-right corner
-        GameObject closeBtnObj = new GameObject("CloseButton");
-        closeBtnObj.transform.SetParent(windowObj.transform, false);
-
-        RectTransform closeRect = closeBtnObj.AddComponent<RectTransform>();
-        closeRect.anchorMin = new Vector2(1, 1);
-        closeRect.anchorMax = new Vector2(1, 1);
-        closeRect.pivot = new Vector2(1, 1);
-        closeRect.anchoredPosition = new Vector2(-10, -10);
-        closeRect.sizeDelta = new Vector2(40, 40);
-
-        Image closeImg = closeBtnObj.AddComponent<Image>();
-        closeImg.color = Color.red;
-
-        Button closeBtn = closeBtnObj.AddComponent<Button>();
-        closeBtn.onClick.AddListener(() => _popupWindow.SetActive(false));
-
-        // "X" label on close button
-        GameObject closeLabelObj = new GameObject("CloseLabel");
-        closeLabelObj.transform.SetParent(closeBtnObj.transform, false);
-
-        RectTransform labelRect = closeLabelObj.AddComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.sizeDelta = Vector2.zero;
-
-        Text closeText = closeLabelObj.AddComponent<Text>();
-        closeText.text = "X";
-        closeText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        closeText.fontSize = 24;
-        closeText.color = Color.white;
-        closeText.alignment = TextAnchor.MiddleCenter;
-
-        string[] characters = GetAvailableCharacters();
-        if (characters.Length > 0)
-            BuildCharacterGrid(windowObj);
-        else
-            BuildEmptyStateMessage(windowObj);
-
-        _popupWindow = windowObj;
-        Log.LogInfo("Popup window created");
-    }
-
-    private static void BuildEmptyStateMessage(GameObject window)
-    {
-        GameObject msgObj = new GameObject("EmptyStateMessage");
-        msgObj.transform.SetParent(window.transform, false);
-
-        RectTransform msgRect = msgObj.AddComponent<RectTransform>();
-        msgRect.anchorMin = new Vector2(0, 0);
-        msgRect.anchorMax = new Vector2(1, 1);
-        msgRect.pivot = new Vector2(0.5f, 0.5f);
-        msgRect.anchoredPosition = Vector2.zero;
-        msgRect.sizeDelta = new Vector2(-40f, -80f);
-
-        Text msg = msgObj.AddComponent<Text>();
-        msg.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        msg.fontSize = 18;
-        msg.color = Color.white;
-        msg.alignment = TextAnchor.UpperCenter;
-        msg.horizontalOverflow = HorizontalWrapMode.Wrap;
-        msg.verticalOverflow = VerticalWrapMode.Overflow;
-        msg.text =
-            "No custom sprites found.\n\n" +
-            "To add your own skins:\n\n" +
-            "1. Open the CustomSprites folder inside this mod's plugin directory.\n" +
-            "2. Choose a slot: st1 through st9.\n" +
-            "3. Place your .png files into that slot's Body or Head subfolder.\n" +
-            "4. Each PNG filename must match the original in-game sprite name.\n" +
-            "5. Press Numpad 1-9 to load and switch to that slot in-game.\n\n" +
-            "Example: CustomSprites/st1/Body/experimentCrus.png";
-
-        Log.LogWarning("No characters with sprites available; showing empty-state instructions.");
-    }
-
-    // --- Character grid ---
-
-    private static void BuildCharacterGrid(GameObject window)
-    {
-        string[] characters = GetAvailableCharacters();
-        if (characters.Length == 0) return;
-
-        GameObject gridObj = new GameObject("CharacterGrid");
-        gridObj.transform.SetParent(window.transform, false);
-
-        RectTransform gridRect = gridObj.AddComponent<RectTransform>();
-        gridRect.anchorMin = Vector2.zero;
-        gridRect.anchorMax = Vector2.one;
-        gridRect.pivot = new Vector2(0.5f, 1f);
-        gridRect.anchoredPosition = new Vector2(0, -55f);
-        gridRect.sizeDelta = new Vector2(-20f, -75f);
-
-        int cols = 3;
-        float cellSize = 110f;
-        float spacing = 10f;
-        float gridWidth = cols * cellSize + (cols - 1) * spacing;
-        float startX = -(gridWidth / 2f) + cellSize / 2f;
-
-        for (int i = 0; i < characters.Length; i++)
-        {
-            int row = i / cols;
-            int col = i % cols;
-
-            float x = startX + col * (cellSize + spacing);
-            float y = -(row * (cellSize + spacing) + cellSize / 2f);
-
-            CreateCharacterCell(gridObj, characters[i], x, y, cellSize);
-        }
-    }
-
-    private static void CreateCharacterCell(GameObject parent, string character, float x, float y, float size)
-    {
-        GameObject cellObj = new GameObject("Cell_" + character);
-        cellObj.transform.SetParent(parent.transform, false);
-
-        RectTransform cellRect = cellObj.AddComponent<RectTransform>();
-        cellRect.anchorMin = new Vector2(0.5f, 1f);
-        cellRect.anchorMax = new Vector2(0.5f, 1f);
-        cellRect.pivot = new Vector2(0.5f, 0.5f);
-        cellRect.anchoredPosition = new Vector2(x, y);
-        cellRect.sizeDelta = new Vector2(size, size);
-
-        Image bgImg = cellObj.AddComponent<Image>();
-        bgImg.color = new Color(0.2f, 0.2f, 0.2f, 0.9f);
-
-        Button btn = cellObj.AddComponent<Button>();
-        btn.onClick.AddListener(() => { Log.LogInfo($"Clicked character: {character}"); });
-
-        // Highlight on hover
-        ColorBlock colors = btn.colors;
-        colors.highlightedColor = new Color(0.4f, 0.4f, 0.4f, 1f);
-        colors.pressedColor = new Color(0.15f, 0.15f, 0.15f, 1f);
-        btn.colors = colors;
-
-        Sprite preview = GetHeadPreviewSprite(character);
-        if (preview != null)
-        {
-            GameObject imgObj = new GameObject("PreviewImage");
-            imgObj.transform.SetParent(cellObj.transform, false);
-
-            RectTransform imgRect = imgObj.AddComponent<RectTransform>();
-            imgRect.anchorMin = new Vector2(0.5f, 0.5f);
-            imgRect.anchorMax = new Vector2(0.5f, 0.5f);
-            imgRect.pivot = new Vector2(0.5f, 0.5f);
-            imgRect.anchoredPosition = new Vector2(0, 8f);
-            imgRect.sizeDelta = new Vector2(size - 16f, size - 30f);
-
-            Image img = imgObj.AddComponent<Image>();
-            img.sprite = preview;
-            img.preserveAspect = true;
-        }
-
-        // Character name label
-        GameObject labelObj = new GameObject("CharacterLabel");
-        labelObj.transform.SetParent(cellObj.transform, false);
-
-        RectTransform lblRect = labelObj.AddComponent<RectTransform>();
-        lblRect.anchorMin = new Vector2(0f, 0f);
-        lblRect.anchorMax = new Vector2(1f, 0f);
-        lblRect.pivot = new Vector2(0.5f, 0f);
-        lblRect.anchoredPosition = new Vector2(0f, 5f);
-        lblRect.sizeDelta = new Vector2(0f, 20f);
-
-        Text lbl = labelObj.AddComponent<Text>();
-        lbl.text = character;
-        lbl.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        lbl.fontSize = 14;
-        lbl.color = Color.white;
-        lbl.alignment = TextAnchor.MiddleCenter;
-    }
-
-    // --- Character scanning & compositing ---
-
-    private static string[] GetAvailableCharacters()
-    {
-        var chars = new List<string>();
-        string basePath = Path.Combine(Paths.PluginPath, "CustomSprites");
-        if (!Directory.Exists(basePath)) return chars.ToArray();
-
-        foreach (string dir in Directory.GetDirectories(basePath))
-        {
-            string name = Path.GetFileName(dir);
-            if (name.StartsWith("st") && CharacterFolderExists(name))
-                chars.Add(name);
-        }
-        chars.Sort();
-        return chars.ToArray();
-    }
-
-    private static Dictionary<string, Sprite> LoadCharacterPreviewSprites(string character)
-    {
-        var dict = new Dictionary<string, Sprite>();
-        string bodyPath = Path.Combine(Paths.PluginPath, "CustomSprites", character, "Body");
-        string headPath = Path.Combine(Paths.PluginPath, "CustomSprites", character, "Head");
-        if (Directory.Exists(bodyPath)) LoadSpritesFromFolderToDict(bodyPath, dict);
-        if (Directory.Exists(headPath)) LoadSpritesFromFolderToDict(headPath, dict);
-        return dict;
-    }
-
-    private static void LoadSpritesFromFolderToDict(string folderPath, Dictionary<string, Sprite> dict)
-    {
-        foreach (string file in Directory.GetFiles(folderPath, "*.png"))
-        {
-            string spriteName = Path.GetFileNameWithoutExtension(file);
-            if (dict.ContainsKey(spriteName)) continue;
-
-            byte[] data = File.ReadAllBytes(file);
-            Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            tex.filterMode = FilterMode.Point;
-            ImageConversion.LoadImage(tex, data);
-
-            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 8f);
-            sprite.name = spriteName;
-            dict[spriteName] = sprite;
-        }
-    }
-
-    private static Sprite ComposeCharacterPreview(string character)
-    {
-        var sprites = LoadCharacterPreviewSprites(character);
-
-        const int canvasW = 48, canvasH = 80;
-        Texture2D composite = new Texture2D(canvasW, canvasH, TextureFormat.RGBA32, false);
-        composite.filterMode = FilterMode.Point;
-
-        Color[] clear = new Color[canvasW * canvasH];
-        for (int i = 0; i < clear.Length; i++) clear[i] = Color.clear;
-        composite.SetPixels(clear);
-
-        // Standing-pose layout: (spriteName, x, y) in Texture2D bottom-left coords
-        // Drawn back-to-front so later parts overlay earlier ones
-        var layout = new (string name, int x, int y)[]
-        {
-            ("experimentThigh",      16, 25),   // left thigh
-            ("experimentThigh",      26, 25),   // right thigh
-            ("experimentDownTorso",  19, 38),
-            ("experimentUpTorso",    19, 50),
-            ("experimentCrus",       17, 15),   // left crus
-            ("experimentCrus",       27, 15),   // right crus
-            ("experimentFoot",       16,  0),   // left foot
-            ("experimentFoot",       26,  0),   // right foot
-            ("experimentUpArm",      11, 50),   // left upper arm
-            ("experimentUpArm",      31, 50),   // right upper arm
-            ("experimentDownArm",    11, 34),   // left lower arm
-            ("experimentDownArm",    31, 34),   // right lower arm
-            ("experimentHandF",      10, 28),   // left hand
-            ("experimentHandF",      31, 28),   // right hand
-            ("experimentHead",       10, 64),   // head (top)
-        };
-
-        foreach (var (name, x, y) in layout)
-        {
-            if (sprites.TryGetValue(name, out Sprite part))
-                BlitSprite(composite, part, x, y);
-        }
-
-        composite.Apply();
-        Sprite preview = Sprite.Create(composite, new Rect(0, 0, canvasW, canvasH), new Vector2(0.5f, 0.5f), 8f);
-        preview.name = character + "_preview";
-        return preview;
-    }
-
-    private static Sprite GetHeadPreviewSprite(string character)
-    {
-        var sprites = LoadCharacterPreviewSprites(character);
-        if (sprites.TryGetValue("experimentHead", out Sprite head))
-            return head;
-        return null;
-    }
-
-    private static void BlitSprite(Texture2D dst, Sprite src, int dstX, int dstY)
-    {
-        Texture2D srcTex = src.texture;
-        int srcW = (int)src.rect.width;
-        int srcH = (int)src.rect.height;
-        int srcX = (int)src.rect.x;
-        int srcY = (int)src.rect.y;
-
-        if (srcW <= 0 || srcH <= 0) return;
-
-        Color[] pixels;
-        try { pixels = srcTex.GetPixels(srcX, srcY, srcW, srcH); }
-        catch { return; }
-
-        int dstW = dst.width;
-        int dstH = dst.height;
-
-        for (int py = 0; py < srcH; py++)
-        {
-            for (int px = 0; px < srcW; px++)
-            {
-                int dx = dstX + px;
-                int dy = dstY + py;
-                if (dx >= 0 && dx < dstW && dy >= 0 && dy < dstH)
-                {
-                    Color c = pixels[py * srcW + px];
-                    if (c.a > 0.01f)
-                        dst.SetPixel(dx, dy, c);
-                }
-            }
         }
     }
 
@@ -661,7 +351,6 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             return r;
         return s;
     }
-
 }
 
 [HarmonyPatch(typeof(Limb), "Awake")]
@@ -692,5 +381,16 @@ public class TailScriptStartPatch
     static void Postfix(TailScript __instance)
     {
         SpriteReplacerPlugin.ApplyReplacementToTail(__instance);
+    }
+}
+
+[HarmonyPatch(typeof(Settings), "ApplyAll")]
+public class SettingsApplyAllPatch
+{
+    // The game re-applies saved settings at startup. Put the saved slot back
+    // into the dropdown first, so a stale dropdown value cannot win.
+    static void Prefix()
+    {
+        CoreLibIntegration.StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);
     }
 }

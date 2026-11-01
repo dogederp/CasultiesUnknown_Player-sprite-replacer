@@ -27,3 +27,6 @@ body-sprite-replacer/plugins/*.runtimeconfig.json
 !body-sprite-replacer/plugins/CustomSprites/**
 !body-sprite-replacer/plugins/body_sprite_replacer.dll
 
+# Runtime skin backups
+body-sprite-replacer/plugins/CustomSprites/backups/
+

@@ -12,7 +12,8 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 ## Compatibility
 
 - Loader: **BepInEx 5.4.23.5**
-- Game version: **6.1 demo**
+- Game version: **Steam demo, April 21, 2026 build**
+- Optional: **CUCoreLib 1.0.6.1 or newer** for the in-game settings tab. The skin selector works without it.
 
 ## About This Project
 
@@ -25,7 +26,8 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 
 1. Open this repository's `body-sprite-replacer/plugins` folder.
 2. Drag/copy its contents into your game's BepInEx `plugins` folder.
-3. Start the game.
+3. Optional: copy `CUCoreLib.dll` into the same folder to get the Skin Replacer settings tab.
+4. Start the game.
 
 ### If BepInEx is not installed yet
 
@@ -35,8 +37,24 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 
 ## Usage
 
-- While in-game, press **Numpad 1 through 9** to instantly switch between different character sprites.
-- The mod will look for sprites in the `CustomSprites/st1` up to `CustomSprites/st9` folders.
+- Click the **top-left button** in the main menu or the Escape menu.
+- The skin selector shows all nine slots: `st1` through `st9`.
+- **Select** uses an existing slot. **Switch** imports a whole skin folder into that slot.
+- **Numpad 1 through 9** changes the active slot while you play.
+- The mod remembers the last slot you selected and loads it at the next launch.
+- The mod looks for sprites in `CustomSprites/st1` up to `CustomSprites/st9`.
+- The button is hidden in the wound view, crafting panel, trade menu, and settings menu.
+- With CUCoreLib installed, the game's settings menu has a **Skin Replacer** tab with an active-slot dropdown.
+
+### Switch and backups
+
+- The **Switch** button asks for a folder that contains `Body` and `Head`.
+- The mod checks the PNG files and the sprite names before it copies anything.
+- An image size that differs from the current slot gives a warning, but the import continues.
+- It writes a timestamped backup of the target slot to `CustomSprites/backups/`.
+- It replaces only the supplied subfolders and removes old `.txt` files from them.
+
+The mod does not create a pause and does not change the time scale.
 
 ## Sprite Credits
 
@@ -49,7 +67,9 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 2. Edit the images in those folders.
 3. Keep the same dimensions/image sizes as the originals. Do not change the file names.
 
-I have not tested what happens if this size restriction is not respected.
+A different image size is allowed. The mod shows a warning, and the sprite can look larger or smaller in the game.
+
+You can also use **Switch** to import a prepared skin folder. The folder must contain a `Body` and/or `Head` subfolder. The PNG file names must match the game sprites exactly. The importer warns about missing names.
 
 ## Finding sprites
 
