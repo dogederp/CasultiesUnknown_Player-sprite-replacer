@@ -10,9 +10,10 @@ internal sealed class SkinCheckResult
     internal readonly List<string> Warnings = new List<string>();
     internal int BodyCount;
     internal int HeadCount;
+    internal int WoundViewCount;
 
     internal bool Ok => Errors.Count == 0;
-    internal int TotalCount => BodyCount + HeadCount;
+    internal int TotalCount => BodyCount + HeadCount + WoundViewCount;
 }
 
 internal static class SkinImporter
@@ -62,6 +63,31 @@ internal static class SkinImporter
     internal static readonly HashSet<string> KnownNames = new HashSet<string>(
         BodyNames.Concat(HeadNames), StringComparer.Ordinal);
 
+    internal static readonly HashSet<string> WoundViewNames = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "abdomenMiddle",
+        "abdomenOutline",
+        "armMiddle",
+        "armOutline",
+        "crusMiddle",
+        "crusOutline",
+        "disfiguredExpWound",
+        "experimentBody",
+        "eyeGoneExpWound",
+        "footMiddle",
+        "footOutline",
+        "forearmMiddle",
+        "forearmOutline",
+        "handMiddle",
+        "handOutline",
+        "headMiddle",
+        "headoutline",
+        "thighMiddle",
+        "thighOutline",
+        "thoraxMiddle",
+        "thoraxOutline"
+    };
+
     internal static SkinCheckResult Check(string sourceDir, string slot)
     {
         var result = new SkinCheckResult();
@@ -80,12 +106,14 @@ internal static class SkinImporter
 
         string bodyDir = Path.Combine(sourceDir, "Body");
         string headDir = Path.Combine(sourceDir, "Head");
+        string woundViewDir = Path.Combine(sourceDir, "WoundView");
         bool hasBody = Directory.Exists(bodyDir);
         bool hasHead = Directory.Exists(headDir);
+        bool hasWoundView = Directory.Exists(woundViewDir);
 
-        if (!hasBody && !hasHead)
+        if (!hasBody && !hasHead && !hasWoundView)
         {
-            result.Errors.Add("The folder must contain a Body or Head subfolder.");
+            result.Errors.Add("The folder must contain a Body, Head, or WoundView subfolder.");
             return result;
         }
 
@@ -98,9 +126,11 @@ internal static class SkinImporter
 
         var bodySet = new HashSet<string>(StringComparer.Ordinal);
         var headSet = new HashSet<string>(StringComparer.Ordinal);
+        var woundViewSet = new HashSet<string>(StringComparer.Ordinal);
 
         if (hasBody) CheckFolder(bodyDir, "Body", slot, BodyNames, bodySet, result);
         if (hasHead) CheckFolder(headDir, "Head", slot, HeadNames, headSet, result);
+        if (hasWoundView) CheckFolder(woundViewDir, "WoundView", slot, WoundViewNames, woundViewSet, result);
 
         foreach (string name in bodySet)
         {
@@ -110,9 +140,15 @@ internal static class SkinImporter
 
         result.BodyCount = bodySet.Count;
         result.HeadCount = headSet.Count;
+        result.WoundViewCount = woundViewSet.Count;
 
         if (result.TotalCount == 0)
             result.Errors.Add("No PNG files were found.");
+
+        if (woundViewSet.Count == 0 && HasAnyTargetFolder(slot, "WoundView"))
+        {
+            result.Warnings.Add("No WoundView PNG files: the import removes the current wound view.");
+        }
 
         int present = 0;
         foreach (string name in KnownNames)
@@ -149,7 +185,7 @@ internal static class SkinImporter
             if (HasAnyTargetFiles(targetRoot))
                 backupPath = CreateBackup(targetRoot, slot);
 
-            foreach (string subfolder in new[] { "Body", "Head" })
+            foreach (string subfolder in new[] { "Body", "Head", "WoundView" })
             {
                 string sourceSub = Path.Combine(sourceDir, subfolder);
                 if (!Directory.Exists(sourceSub)) continue;
@@ -163,6 +199,14 @@ internal static class SkinImporter
 
                 foreach (string png in pngs)
                     File.Copy(png, Path.Combine(targetSub, Path.GetFileName(png)), true);
+            }
+
+            string sourceWoundDir = Path.Combine(sourceDir, "WoundView");
+            bool sourceHasWoundPngs = Directory.Exists(sourceWoundDir) && GetPngFiles(sourceWoundDir).Length > 0;
+            if (!sourceHasWoundPngs)
+            {
+                string targetWoundDir = Path.Combine(targetRoot, "WoundView");
+                if (Directory.Exists(targetWoundDir)) Directory.Delete(targetWoundDir, true);
             }
 
             return true;
@@ -294,12 +338,18 @@ internal static class SkinImporter
 
     private static bool HasAnyTargetFiles(string targetRoot)
     {
-        foreach (string subfolder in new[] { "Body", "Head" })
+        foreach (string subfolder in new[] { "Body", "Head", "WoundView" })
         {
             string path = Path.Combine(targetRoot, subfolder);
             if (Directory.Exists(path) && Directory.GetFiles(path).Length > 0) return true;
         }
         return false;
+    }
+
+    private static bool HasAnyTargetFolder(string slot, string subfolder)
+    {
+        string path = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot, subfolder);
+        return Directory.Exists(path) && Directory.GetFiles(path).Length > 0;
     }
 
     private static string CreateBackup(string targetRoot, string slot)
@@ -318,7 +368,7 @@ internal static class SkinImporter
 
         Directory.CreateDirectory(backup);
 
-        foreach (string subfolder in new[] { "Body", "Head" })
+        foreach (string subfolder in new[] { "Body", "Head", "WoundView" })
         {
             string source = Path.Combine(targetRoot, subfolder);
             if (!Directory.Exists(source)) continue;
@@ -334,7 +384,7 @@ internal static class SkinImporter
 
     private static void RestoreBackup(string backup, string targetRoot)
     {
-        foreach (string subfolder in new[] { "Body", "Head" })
+        foreach (string subfolder in new[] { "Body", "Head", "WoundView" })
         {
             string source = Path.Combine(backup, subfolder);
             string destination = Path.Combine(targetRoot, subfolder);

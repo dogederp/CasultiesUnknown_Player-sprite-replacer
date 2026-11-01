@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System;
 
-[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.2.1")]
+[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.3.0")]
 [BepInDependency("net.cucorelib", BepInDependency.DependencyFlags.SoftDependency)]
 public class SpriteReplacerPlugin : BaseUnityPlugin
 {
@@ -19,6 +19,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     public static string SpritesPath => Path.Combine(Paths.PluginPath, "CustomSprites");
     public static Dictionary<string, Sprite> LoadedSprites = new Dictionary<string, Sprite>();
+    internal static readonly HashSet<string> ColoredWoundSprites = new HashSet<string>();
     internal static ManualLogSource Log;
 
     private static string _activeSlot = "st1";
@@ -231,8 +232,10 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     private static void LoadCharacterSprites(string character)
     {
         LoadedSprites.Clear();
+        ColoredWoundSprites.Clear();
         LoadSpritesFromFolder(character, "Body");
         LoadSpritesFromFolder(character, "Head");
+        LoadSpritesFromFolder(character, "WoundView");
         Log.LogInfo($"Loaded {LoadedSprites.Count} sprites for character {character}");
     }
 
@@ -258,8 +261,23 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             sprite.name = spriteName;
             LoadedSprites[spriteName] = sprite;
 
+            if (subfolder == "WoundView" && HasColorPixels(tex))
+                ColoredWoundSprites.Add(spriteName);
+
             Log.LogInfo("Loaded sprite: " + spriteName);
         }
+    }
+
+    private static bool HasColorPixels(Texture2D tex)
+    {
+        Color32[] pixels = tex.GetPixels32();
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            Color32 p = pixels[i];
+            if (p.a < 128) continue;
+            if (p.r != p.g || p.g != p.b) return true;
+        }
+        return false;
     }
 
     internal static Sprite LoadEmbeddedSprite(string resourceName)
@@ -302,6 +320,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         {
             ApplyReplacementToFace(face);
         }
+        WoundViewIntegration.ApplyAll();
     }
 
     public static void ApplyReplacement(Limb limb)
@@ -392,5 +411,32 @@ public class SettingsApplyAllPatch
     static void Prefix()
     {
         CoreLibIntegration.StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);
+    }
+}
+
+[HarmonyPatch(typeof(WoundView), "Awake")]
+public class WoundViewAwakePatch
+{
+    static void Postfix(WoundView __instance)
+    {
+        WoundViewIntegration.Apply(__instance);
+    }
+}
+
+[HarmonyPatch(typeof(WoundView), "UpdateView")]
+public class WoundViewUpdatePatch
+{
+    static void Postfix(WoundView __instance)
+    {
+        WoundViewIntegration.ShowCustomColors(__instance);
+    }
+}
+
+[HarmonyPatch(typeof(PlayerCamera), "Awake")]
+public class PlayerCameraAwakePatch
+{
+    static void Postfix()
+    {
+        WoundViewIntegration.ApplyAll();
     }
 }

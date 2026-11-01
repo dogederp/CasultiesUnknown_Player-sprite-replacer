@@ -43,16 +43,19 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 - **Numpad 1 through 9** changes the active slot while you play.
 - The mod remembers the last slot you selected and loads it at the next launch.
 - The mod looks for sprites in `CustomSprites/st1` up to `CustomSprites/st9`.
+- A slot can also contain a `WoundView` subfolder. The mod replaces the wound screen art with these sprites.
 - The button is hidden in the wound view, crafting panel, trade menu, and settings menu.
 - With CUCoreLib installed, the game's settings menu has a **Skin Replacer** tab with an active-slot dropdown.
 
 ### Switch and backups
 
-- The **Switch** button asks for a folder that contains `Body` and `Head`.
+- The **Switch** button asks for a folder that contains `Body`, `Head`, or `WoundView`.
 - The mod checks the PNG files and the sprite names before it copies anything.
 - An image size that differs from the current slot gives a warning, but the import continues.
 - It writes a timestamped backup of the target slot to `CustomSprites/backups/`.
-- It replaces only the supplied subfolders and removes old `.txt` files from them.
+- It replaces the supplied subfolders and removes old `.txt` files from them.
+- If the imported skin has no `WoundView` PNG files, the mod removes the slot's `WoundView` folder. The backup keeps it.
+- The import result lists all warnings in a scrollable area.
 
 The mod does not create a pause and does not change the time scale.
 
@@ -69,7 +72,11 @@ The mod does not create a pause and does not change the time scale.
 
 A different image size is allowed. The mod shows a warning, and the sprite can look larger or smaller in the game.
 
-You can also use **Switch** to import a prepared skin folder. The folder must contain a `Body` and/or `Head` subfolder. The PNG file names must match the game sprites exactly. The importer warns about missing names.
+You can also use **Switch** to import a prepared skin folder. The folder must contain a `Body`, `Head`, or `WoundView` subfolder. The PNG file names must match the game sprites exactly. The importer warns about missing names.
+
+The `WoundView` folder holds the art for the health screen: the body image, the limb outlines, and the limb wound layers. Copy the file names from an existing `WoundView` folder.
+
+The game tints the wound view layers at runtime: the outline layer gets a white to red tint, and the inner layer gets a black to red tint. The mod turns off the tint of an inner layer when its PNG has colors, so custom colors show. A white inner mask keeps the game tint.
 
 ## Finding sprites
 

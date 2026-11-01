@@ -19,6 +19,7 @@ internal static class SkinMenuUI
     private static RectTransform _listContent;
     private static ScrollRect _listScroll;
     private static Text _statusText;
+    private static ScrollRect _statusScroll;
     private static string _browserPath;
     private static string _pendingSlot;
     private static bool _visible;
@@ -347,18 +348,48 @@ internal static class SkinMenuUI
             new Vector2(664f, -50f), new Vector2(72f, 32f));
         drives.onClick.AddListener(ShowDrives);
 
-        _statusText = CreateText(window.transform, "Status",
+        GameObject statusBox = new GameObject("StatusBox");
+        statusBox.transform.SetParent(window.transform, false);
+        RectTransform statusBoxRect = statusBox.AddComponent<RectTransform>();
+        SetRect(statusBoxRect, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(24f, -88f), new Vector2(712f, 104f));
+        _statusScroll = statusBox.AddComponent<ScrollRect>();
+
+        GameObject statusViewport = new GameObject("Viewport");
+        statusViewport.transform.SetParent(statusBox.transform, false);
+        RectTransform statusViewportRect = statusViewport.AddComponent<RectTransform>();
+        SetRect(statusViewportRect, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+        statusViewport.AddComponent<RectMask2D>();
+        Image statusViewportImage = statusViewport.AddComponent<Image>();
+        statusViewportImage.color = new Color(0f, 0f, 0f, 0.01f);
+
+        _statusText = CreateText(statusViewport.transform, "Status",
             "Choose the folder that contains Body and Head.",
             12, new Color(0.8f, 0.8f, 0.8f), TextAnchor.UpperLeft);
-        _statusText.verticalOverflow = VerticalWrapMode.Truncate;
-        SetRect(_statusText.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(24f, -88f), new Vector2(712f, 44f));
+        _statusText.supportRichText = false;
+        _statusText.verticalOverflow = VerticalWrapMode.Overflow;
+        RectTransform statusTextRect = _statusText.rectTransform;
+        statusTextRect.anchorMin = new Vector2(0f, 1f);
+        statusTextRect.anchorMax = new Vector2(1f, 1f);
+        statusTextRect.pivot = new Vector2(0.5f, 1f);
+        statusTextRect.anchoredPosition = Vector2.zero;
+        statusTextRect.sizeDelta = Vector2.zero;
+        ContentSizeFitter statusFitter = _statusText.gameObject.AddComponent<ContentSizeFitter>();
+        statusFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        _statusScroll.viewport = statusViewportRect;
+        _statusScroll.content = statusTextRect;
+        _statusScroll.horizontal = false;
+        _statusScroll.vertical = true;
+        _statusScroll.movementType = ScrollRect.MovementType.Clamped;
+        _statusScroll.scrollSensitivity = 20f;
 
         GameObject list = new GameObject("FolderList");
         list.transform.SetParent(window.transform, false);
         RectTransform listRect = list.AddComponent<RectTransform>();
         SetRect(listRect, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(24f, -136f), new Vector2(712f, 360f));
+            new Vector2(24f, -196f), new Vector2(712f, 300f));
         _listScroll = list.AddComponent<ScrollRect>();
 
         GameObject viewport = new GameObject("Viewport");
@@ -533,7 +564,8 @@ internal static class SkinMenuUI
 
             string name = Path.GetFileName(directory);
             bool isSkin = Directory.Exists(Path.Combine(directory, "Body")) ||
-                          Directory.Exists(Path.Combine(directory, "Head"));
+                          Directory.Exists(Path.Combine(directory, "Head")) ||
+                          Directory.Exists(Path.Combine(directory, "WoundView"));
 
             AddFolderButton(name + (isSkin ? "  [skin]" : string.Empty), directory);
             count++;
@@ -608,10 +640,20 @@ internal static class SkinMenuUI
         }
 
         string message = "Imported " + check.TotalCount + " sprites into " + _pendingSlot + ".";
-        if (!string.IsNullOrEmpty(backup)) message += "\nBackup: " + backup;
-        if (check.Warnings.Count > 0) message += "\n" + string.Join("; ", check.Warnings.Take(2));
+        Color messageColor = new Color(0.55f, 1f, 0.55f);
 
-        SetStatus(message, new Color(0.55f, 1f, 0.55f));
+        if (check.Warnings.Count > 0)
+        {
+            var lines = new List<string>();
+            lines.Add("Warnings (" + check.Warnings.Count + "):");
+            foreach (string warning in check.Warnings) lines.Add("Warning: " + warning);
+            message += "\n" + string.Join("\n", lines);
+            messageColor = new Color(1f, 0.85f, 0.4f);
+        }
+
+        if (!string.IsNullOrEmpty(backup)) SpriteReplacerPlugin.Log.LogInfo("Backup: " + backup);
+
+        SetStatus(message, messageColor);
         SpriteReplacerPlugin.SwitchToSlot(_pendingSlot, true);
         BuildGrid();
     }
@@ -621,6 +663,12 @@ internal static class SkinMenuUI
         if (_statusText == null) return;
         _statusText.text = text;
         _statusText.color = color;
+
+        if (_statusScroll != null)
+        {
+            _statusText.rectTransform.anchoredPosition = Vector2.zero;
+            _statusScroll.verticalNormalizedPosition = 1f;
+        }
     }
 
     internal static void CloseFolderBrowser()
@@ -636,6 +684,7 @@ internal static class SkinMenuUI
         _listContent = null;
         _listScroll = null;
         _statusText = null;
+        _statusScroll = null;
     }
 
     private static Text CreateText(Transform parent, string name, string text, int size, Color color, TextAnchor anchor)
