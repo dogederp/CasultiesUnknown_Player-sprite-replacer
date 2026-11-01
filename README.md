@@ -45,15 +45,18 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 - The mod looks for sprites in `CustomSprites/st1` up to `CustomSprites/st9`.
 - A slot can also contain a `WoundView` subfolder. The mod replaces the wound screen art with these sprites.
 - The button is hidden in the wound view, crafting panel, trade menu, and settings menu.
-- With CUCoreLib installed, the game's settings menu has a **Skin Replacer** tab with an active-slot dropdown.
+- With CUCoreLib installed, the game's settings menu has a **Skin Replacer** tab with an active-slot dropdown and a backup-count option.
 
 ### Switch and backups
 
 - The **Switch** button asks for a folder that contains `Body`, `Head`, or `WoundView`.
 - The mod checks the PNG files and the sprite names before it copies anything.
+- An unknown PNG file name gives a warning. The import skips that file and continues.
 - An image size that differs from the current slot gives a warning, but the import continues.
 - It writes a timestamped backup of the target slot to `CustomSprites/backups/`.
+- It keeps the newest 5 backups for each slot. The **Backups kept per slot** setting changes the count. The `BackupCount` entry in `BepInEx/config/com.yourname.spritereplacer.cfg` does the same. `0` keeps all backups. Older backups are deleted.
 - It replaces the supplied subfolders and removes old `.txt` files from them.
+- If the skin has only a `Body` folder and the Head sprites are inside `Body`, the mod moves them into a new `Head` folder. If it finds no Head sprites, the import stops with an error.
 - If the imported skin has no `WoundView` PNG files, the mod removes the slot's `WoundView` folder. The backup keeps it.
 - The import result lists all warnings in a scrollable area.
 

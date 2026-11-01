@@ -26,4 +26,4 @@ BepInEx/
         └── ... (up to st9)
 ```
 
-The **Switch** button writes a timestamped copy of the target slot to `backups/` before it replaces files. The mod creates `backups/` on demand. Each backup keeps the old `Body`, `Head`, and `WoundView` folders.
+The **Switch** button writes a timestamped copy of the target slot to `backups/` before it replaces files. The mod creates `backups/` on demand. Each backup keeps the old `Body`, `Head`, and `WoundView` folders. The mod keeps the newest 5 backups for each slot by default. The **Backups kept per slot** setting changes the count. `0` keeps all backups.

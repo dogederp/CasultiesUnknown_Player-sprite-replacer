@@ -43,7 +43,7 @@ internal static class CoreLibIntegration
             .ToArray();
 
         int defaultIndex = SlotIndex(SpriteReplacerPlugin.ActiveSlot);
-        bool ok = ModOptionsRegistry.Register(ModOptionDefinition.Dropdown(
+        bool slotOk = ModOptionsRegistry.Register(ModOptionDefinition.Dropdown(
             "spritereplacer.activeSlot",
             "Active slot",
             "Select the CustomSprites slot to use.",
@@ -52,16 +52,28 @@ internal static class CoreLibIntegration
             choices,
             OnDropdownChanged));
 
-        if (ok)
+        bool backupOk = ModOptionsRegistry.Register(ModOptionDefinition.Int(
+            "spritereplacer.backupCount",
+            "Backups kept per slot",
+            "Number of backup folders to keep for each slot. Older backups are deleted. 0 keeps all backups.",
+            "Skin Replacer",
+            SpriteReplacerPlugin.BackupCount,
+            0,
+            SpriteReplacerPlugin.MaxBackupCount,
+            OnBackupCountChanged));
+
+        if (!slotOk)
+            SpriteReplacerPlugin.Log.LogWarning("CUCoreLib rejected the active slot option.");
+        if (!backupOk)
+            SpriteReplacerPlugin.Log.LogWarning("CUCoreLib rejected the backup count option.");
+
+        if (slotOk || backupOk)
         {
             SpriteReplacerPlugin.Log.LogInfo("CUCoreLib settings tab registered.");
             // The game can re-apply saved settings after registration. Keep the
-            // stored dropdown on the slot the config restored.
-            StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);
-        }
-        else
-        {
-            SpriteReplacerPlugin.Log.LogWarning("CUCoreLib rejected the settings option.");
+            // stored values on the values that the config restored.
+            if (slotOk) StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);
+            if (backupOk) StoreBackupCount(SpriteReplacerPlugin.BackupCount);
         }
     }
 
@@ -84,6 +96,32 @@ internal static class CoreLibIntegration
         {
             SpriteReplacerPlugin.Log.LogWarning("Could not update the saved active slot: " + ex.Message);
         }
+    }
+
+    internal static void StoreBackupCount(int count)
+    {
+        try
+        {
+            if (Settings.settings == null) return;
+
+            foreach (Setting setting in Settings.settings)
+            {
+                if (!(setting is SettingInt intSetting)) continue;
+                if (intSetting.name != "spritereplacer.backupCount") continue;
+                intSetting.value = Math.Max(0, Math.Min(SpriteReplacerPlugin.MaxBackupCount, count));
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            SpriteReplacerPlugin.Log.LogWarning("Could not update the saved backup count: " + ex.Message);
+        }
+    }
+
+    private static void OnBackupCountChanged(int value)
+    {
+        SpriteReplacerPlugin.SetBackupCount(value);
+        SkinImporter.PruneAllBackups();
     }
 
     private static void OnDropdownChanged(int index)

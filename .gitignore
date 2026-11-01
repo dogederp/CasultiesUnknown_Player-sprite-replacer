@@ -30,3 +30,6 @@ body-sprite-replacer/plugins/*.runtimeconfig.json
 # Runtime skin backups
 body-sprite-replacer/plugins/CustomSprites/backups/
 
+# Local task notes
+TODO.local.md
+

@@ -16,6 +16,8 @@ using System;
 public class SpriteReplacerPlugin : BaseUnityPlugin
 {
     public const int SlotCount = 9;
+    public const int DefaultBackupCount = 5;
+    public const int MaxBackupCount = 50;
 
     public static string SpritesPath => Path.Combine(Paths.PluginPath, "CustomSprites");
     public static Dictionary<string, Sprite> LoadedSprites = new Dictionary<string, Sprite>();
@@ -26,6 +28,10 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     public static string ActiveSlot => _activeSlot;
 
     private static ConfigEntry<string> _activeSlotSetting;
+    private static ConfigEntry<int> _backupCountSetting;
+
+    internal static int BackupCount =>
+        _backupCountSetting == null ? DefaultBackupCount : Math.Max(0, _backupCountSetting.Value);
 
     private static readonly Dictionary<KeyCode, string> KeyMapping = new Dictionary<KeyCode, string>
     {
@@ -46,6 +52,11 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
         _activeSlotSetting = Config.Bind("General", "ActiveSlot", "st1",
             "The CustomSprites slot that loads at startup. Values: st1 to st9.");
+
+        _backupCountSetting = Config.Bind("General", "BackupCount", DefaultBackupCount,
+            new ConfigDescription(
+                "Number of backup folders to keep for each slot. Older backups are deleted. 0 keeps all backups.",
+                new AcceptableValueRange<int>(0, MaxBackupCount)));
 
         EnsureCustomSpritesStructure();
 
@@ -189,6 +200,17 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         _activeSlotSetting.Value = slot;
         if (_activeSlotSetting.ConfigFile != null)
             _activeSlotSetting.ConfigFile.Save();
+    }
+
+    internal static void SetBackupCount(int value)
+    {
+        if (_backupCountSetting == null) return;
+        value = Math.Max(0, Math.Min(MaxBackupCount, value));
+        if (_backupCountSetting.Value == value) return;
+
+        _backupCountSetting.Value = value;
+        if (_backupCountSetting.ConfigFile != null)
+            _backupCountSetting.ConfigFile.Save();
     }
 
     internal static bool CharacterFolderExists(string character)
@@ -411,6 +433,7 @@ public class SettingsApplyAllPatch
     static void Prefix()
     {
         CoreLibIntegration.StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);
+        CoreLibIntegration.StoreBackupCount(SpriteReplacerPlugin.BackupCount);
     }
 }
 

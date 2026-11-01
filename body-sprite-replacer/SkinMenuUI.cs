@@ -624,6 +624,14 @@ internal static class SkinMenuUI
             return;
         }
 
+        int movedHead;
+        string prepareError;
+        if (!SkinImporter.PrepareSkinFolder(_browserPath, _pendingSlot, out movedHead, out prepareError))
+        {
+            SetStatus(prepareError, new Color(1f, 0.45f, 0.45f));
+            return;
+        }
+
         SkinCheckResult check = SkinImporter.Check(_browserPath, _pendingSlot);
         if (!check.Ok)
         {
@@ -639,7 +647,9 @@ internal static class SkinMenuUI
             return;
         }
 
-        string message = "Imported " + check.TotalCount + " sprites into " + _pendingSlot + ".";
+        string message = "";
+        if (movedHead > 0) message += "Moved " + movedHead + " Head sprites into Head.\n";
+        message += "Imported " + check.TotalCount + " sprites into " + _pendingSlot + ".";
         Color messageColor = new Color(0.55f, 1f, 0.55f);
 
         if (check.Warnings.Count > 0)

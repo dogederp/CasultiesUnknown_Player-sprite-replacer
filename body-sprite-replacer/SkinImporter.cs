@@ -143,7 +143,7 @@ internal static class SkinImporter
         result.WoundViewCount = woundViewSet.Count;
 
         if (result.TotalCount == 0)
-            result.Errors.Add("No PNG files were found.");
+            result.Errors.Add("No PNG files with known sprite names were found.");
 
         if (woundViewSet.Count == 0 && HasAnyTargetFolder(slot, "WoundView"))
         {
@@ -193,16 +193,23 @@ internal static class SkinImporter
                 string[] pngs = GetPngFiles(sourceSub);
                 if (pngs.Length == 0) continue;
 
+                HashSet<string> allowed = AllowedNamesFor(subfolder);
+                string[] knownPngs = pngs
+                    .Where(png => allowed.Contains(Path.GetFileNameWithoutExtension(png)))
+                    .ToArray();
+                if (knownPngs.Length == 0) continue;
+
                 string targetSub = Path.Combine(targetRoot, subfolder);
                 Directory.CreateDirectory(targetSub);
                 DeletePngAndTxt(targetSub);
 
-                foreach (string png in pngs)
+                foreach (string png in knownPngs)
                     File.Copy(png, Path.Combine(targetSub, Path.GetFileName(png)), true);
             }
 
             string sourceWoundDir = Path.Combine(sourceDir, "WoundView");
-            bool sourceHasWoundPngs = Directory.Exists(sourceWoundDir) && GetPngFiles(sourceWoundDir).Length > 0;
+            bool sourceHasWoundPngs = Directory.Exists(sourceWoundDir) &&
+                GetPngFiles(sourceWoundDir).Any(png => WoundViewNames.Contains(Path.GetFileNameWithoutExtension(png)));
             if (!sourceHasWoundPngs)
             {
                 string targetWoundDir = Path.Combine(targetRoot, "WoundView");
@@ -227,6 +234,55 @@ internal static class SkinImporter
             }
             return false;
         }
+    }
+
+    internal static bool PrepareSkinFolder(string sourceDir, string slot, out int movedCount, out string error)
+    {
+        movedCount = 0;
+        error = null;
+
+        string bodyDir = Path.Combine(sourceDir, "Body");
+        string headDir = Path.Combine(sourceDir, "Head");
+        if (!Directory.Exists(sourceDir) || !Directory.Exists(bodyDir)) return true;
+
+        bool headHasPngs = Directory.Exists(headDir) && GetPngFiles(headDir).Length > 0;
+        if (headHasPngs) return true;
+
+        string targetRoot = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot);
+        if (SamePath(sourceDir, targetRoot)) return true;
+
+        var headFiles = new List<string>();
+        foreach (string png in GetPngFiles(bodyDir))
+        {
+            if (HeadNames.Contains(Path.GetFileNameWithoutExtension(png))) headFiles.Add(png);
+        }
+
+        if (headFiles.Count == 0)
+        {
+            error = "No Head folder and no Head sprites in Body. Make a Head folder for the Head PNG files, " +
+                    "or put them in Body with their exact sprite names.";
+            return false;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(headDir);
+            foreach (string png in headFiles)
+            {
+                File.Move(png, Path.Combine(headDir, Path.GetFileName(png)));
+                string txt = Path.ChangeExtension(png, ".txt");
+                if (File.Exists(txt))
+                    File.Move(txt, Path.Combine(headDir, Path.GetFileName(txt)));
+                movedCount++;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = "Cannot move the Head sprites into the Head folder: " + ex.Message;
+            return false;
+        }
+
+        return true;
     }
 
     private static bool SamePath(string left, string right)
@@ -262,16 +318,23 @@ internal static class SkinImporter
             if (!Path.GetExtension(file).Equals(".png", StringComparison.OrdinalIgnoreCase)) continue;
 
             string name = Path.GetFileNameWithoutExtension(file);
-            if (!present.Add(name)) continue;
-
             if (!allowed.Contains(name))
             {
-                result.Errors.Add("Unknown " + subfolder + " sprite name: " + name);
+                result.Warnings.Add("Unknown " + subfolder + " PNG skipped: " + name + ".");
                 continue;
             }
 
+            if (!present.Add(name)) continue;
+
             CheckPng(file, name, subfolder, slot, result);
         }
+    }
+
+    private static HashSet<string> AllowedNamesFor(string subfolder)
+    {
+        if (subfolder == "Body") return BodyNames;
+        if (subfolder == "Head") return HeadNames;
+        return WoundViewNames;
     }
 
     private static void CheckPng(string file, string name, string subfolder, string slot, SkinCheckResult result)
@@ -379,7 +442,69 @@ internal static class SkinImporter
                 File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), true);
         }
 
+        PruneBackups(slot, SpriteReplacerPlugin.BackupCount);
         return backup;
+    }
+
+    internal static void PruneAllBackups()
+    {
+        int keep = SpriteReplacerPlugin.BackupCount;
+        if (keep <= 0) return;
+
+        for (int i = 1; i <= SpriteReplacerPlugin.SlotCount; i++)
+            PruneBackups("st" + i, keep);
+    }
+
+    private static void PruneBackups(string slot, int keep)
+    {
+        if (keep <= 0) return;
+
+        string root = Path.Combine(SpriteReplacerPlugin.SpritesPath, "backups");
+        if (!Directory.Exists(root)) return;
+
+        string[] dirs;
+        try
+        {
+            dirs = Directory.GetDirectories(root, slot + "_*");
+        }
+        catch (Exception ex)
+        {
+            SpriteReplacerPlugin.Log.LogWarning("Could not list old backups for " + slot + ": " + ex.Message);
+            return;
+        }
+
+        if (dirs.Length <= keep) return;
+
+        var entries = new List<KeyValuePair<string, DateTime>>();
+        foreach (string dir in dirs)
+        {
+            try
+            {
+                entries.Add(new KeyValuePair<string, DateTime>(dir, Directory.GetCreationTimeUtc(dir)));
+            }
+            catch
+            {
+            }
+        }
+
+        entries.Sort((left, right) =>
+        {
+            int result = right.Value.CompareTo(left.Value);
+            if (result != 0) return result;
+            return string.CompareOrdinal(Path.GetFileName(right.Key), Path.GetFileName(left.Key));
+        });
+
+        for (int i = keep; i < entries.Count; i++)
+        {
+            try
+            {
+                Directory.Delete(entries[i].Key, true);
+            }
+            catch (Exception ex)
+            {
+                SpriteReplacerPlugin.Log.LogWarning("Could not delete old backup " + entries[i].Key + ": " + ex.Message);
+            }
+        }
     }
 
     private static void RestoreBackup(string backup, string targetRoot)
