@@ -74,7 +74,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="plugins\body_sprite_replacer.dll" />
-    <EmbeddedResource Include="resources\placeholder.png" />
+    <EmbeddedResource Include="resources\spritereplacer1.png" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="plugins\" />

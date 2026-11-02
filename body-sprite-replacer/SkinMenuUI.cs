@@ -37,7 +37,7 @@ internal static class SkinMenuUI
         if (_canvas != null) return;
 
         GameTheme.Resolve();
-        _placeholder = SpriteReplacerPlugin.LoadEmbeddedSprite("body_sprite_replacer.resources.placeholder.png");
+        _placeholder = SpriteReplacerPlugin.LoadEmbeddedSprite("body_sprite_replacer.resources.spritereplacer1.png");
 
         GameObject canvasObj = new GameObject("SpriteReplacerMenuCanvas");
         Canvas canvas = canvasObj.AddComponent<Canvas>();
