@@ -39,10 +39,10 @@ internal static class CoreLibIntegration
     private static void RegisterCoreLib()
     {
         ModDropdownChoice[] choices = Enumerable.Range(1, SpriteReplacerPlugin.SlotCount)
-            .Select(i => new ModDropdownChoice("st" + i, "st" + i))
+            .Select(i => new ModDropdownChoice(SlotFolders.SlotId(i), "Slot " + i))
             .ToArray();
 
-        int defaultIndex = SlotIndex(SpriteReplacerPlugin.ActiveSlot);
+        int defaultIndex = Math.Max(0, SlotFolders.Index(SpriteReplacerPlugin.ActiveSlot));
         bool slotOk = ModOptionsRegistry.Register(ModOptionDefinition.Dropdown(
             "spritereplacer.activeSlot",
             "Active slot",
@@ -83,7 +83,7 @@ internal static class CoreLibIntegration
         {
             if (Settings.settings == null) return;
 
-            int index = SlotIndex(slot);
+            int index = Math.Max(0, SlotFolders.Index(slot));
             foreach (Setting setting in Settings.settings)
             {
                 if (!(setting is SettingDropdown dropdown)) continue;
@@ -126,17 +126,6 @@ internal static class CoreLibIntegration
 
     private static void OnDropdownChanged(int index)
     {
-        SpriteReplacerPlugin.SwitchToSlot("st" + (index + 1));
-    }
-
-    private static int SlotIndex(string slot)
-    {
-        if (slot != null && slot.Length == 3 &&
-            slot.StartsWith("st", StringComparison.Ordinal) &&
-            slot[2] >= '1' && slot[2] <= '9')
-        {
-            return slot[2] - '1';
-        }
-        return 0;
+        SpriteReplacerPlugin.SwitchToSlot(SlotFolders.SlotId(index + 1));
     }
 }

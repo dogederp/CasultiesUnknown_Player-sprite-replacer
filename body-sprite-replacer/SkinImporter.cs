@@ -92,6 +92,14 @@ internal static class SkinImporter
     {
         var result = new SkinCheckResult();
 
+        string normalized = SlotFolders.Normalize(slot);
+        if (normalized == null)
+        {
+            result.Errors.Add("Invalid slot: " + slot);
+            return result;
+        }
+        slot = normalized;
+
         if (string.IsNullOrWhiteSpace(sourceDir))
         {
             result.Errors.Add("No folder was selected.");
@@ -171,6 +179,14 @@ internal static class SkinImporter
         backupPath = null;
         error = null;
 
+        string normalized = SlotFolders.Normalize(slot);
+        if (normalized == null)
+        {
+            error = "Invalid slot: " + slot;
+            return false;
+        }
+        slot = normalized;
+
         SkinCheckResult check = Check(sourceDir, slot);
         if (!check.Ok)
         {
@@ -240,6 +256,14 @@ internal static class SkinImporter
     {
         movedCount = 0;
         error = null;
+
+        string normalized = SlotFolders.Normalize(slot);
+        if (normalized == null)
+        {
+            error = "Invalid slot: " + slot;
+            return false;
+        }
+        slot = normalized;
 
         string bodyDir = Path.Combine(sourceDir, "Body");
         string headDir = Path.Combine(sourceDir, "Head");
@@ -452,20 +476,28 @@ internal static class SkinImporter
         if (keep <= 0) return;
 
         for (int i = 1; i <= SpriteReplacerPlugin.SlotCount; i++)
-            PruneBackups("st" + i, keep);
+            PruneBackups(SlotFolders.SlotId(i), keep);
     }
 
     private static void PruneBackups(string slot, int keep)
     {
         if (keep <= 0) return;
 
+        string normalized = SlotFolders.Normalize(slot);
+        if (normalized == null) return;
+        slot = normalized;
+
         string root = Path.Combine(SpriteReplacerPlugin.SpritesPath, "backups");
         if (!Directory.Exists(root)) return;
 
-        string[] dirs;
+        var dirs = new List<string>();
         try
         {
-            dirs = Directory.GetDirectories(root, slot + "_*");
+            dirs.AddRange(Directory.GetDirectories(root, slot + "_*"));
+
+            string legacy = SlotFolders.LegacySlotId(SlotFolders.Index(slot) + 1);
+            if (legacy != slot)
+                dirs.AddRange(Directory.GetDirectories(root, legacy + "_*"));
         }
         catch (Exception ex)
         {
@@ -473,7 +505,7 @@ internal static class SkinImporter
             return;
         }
 
-        if (dirs.Length <= keep) return;
+        if (dirs.Count <= keep) return;
 
         var entries = new List<KeyValuePair<string, DateTime>>();
         foreach (string dir in dirs)

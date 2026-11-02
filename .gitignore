@@ -31,5 +31,5 @@ body-sprite-replacer/plugins/*.runtimeconfig.json
 body-sprite-replacer/plugins/CustomSprites/backups/
 
 # Local task notes
-TODO.local.md
+*.local.md
 

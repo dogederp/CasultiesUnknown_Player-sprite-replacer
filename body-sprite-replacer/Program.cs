@@ -5,7 +5,7 @@ using HarmonyLib;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
+using TMPro;
 using System.IO;
 using System.Collections.Generic;
 using System.Reflection;
@@ -24,7 +24,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     internal static readonly HashSet<string> ColoredWoundSprites = new HashSet<string>();
     internal static ManualLogSource Log;
 
-    private static string _activeSlot = "st1";
+    private static string _activeSlot = SlotFolders.SlotId(1);
     public static string ActiveSlot => _activeSlot;
 
     private static ConfigEntry<string> _activeSlotSetting;
@@ -35,41 +35,48 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static readonly Dictionary<KeyCode, string> KeyMapping = new Dictionary<KeyCode, string>
     {
-        { KeyCode.Keypad1, "st1" },
-        { KeyCode.Keypad2, "st2" },
-        { KeyCode.Keypad3, "st3" },
-        { KeyCode.Keypad4, "st4" },
-        { KeyCode.Keypad5, "st5" },
-        { KeyCode.Keypad6, "st6" },
-        { KeyCode.Keypad7, "st7" },
-        { KeyCode.Keypad8, "st8" },
-        { KeyCode.Keypad9, "st9" }
+        { KeyCode.Keypad1, SlotFolders.SlotId(1) },
+        { KeyCode.Keypad2, SlotFolders.SlotId(2) },
+        { KeyCode.Keypad3, SlotFolders.SlotId(3) },
+        { KeyCode.Keypad4, SlotFolders.SlotId(4) },
+        { KeyCode.Keypad5, SlotFolders.SlotId(5) },
+        { KeyCode.Keypad6, SlotFolders.SlotId(6) },
+        { KeyCode.Keypad7, SlotFolders.SlotId(7) },
+        { KeyCode.Keypad8, SlotFolders.SlotId(8) },
+        { KeyCode.Keypad9, SlotFolders.SlotId(9) }
     };
 
     private void Awake()
     {
         Log = Logger;
 
-        _activeSlotSetting = Config.Bind("General", "ActiveSlot", "st1",
-            "The CustomSprites slot that loads at startup. Values: st1 to st9.");
+        _activeSlotSetting = Config.Bind("General", "ActiveSlot", SlotFolders.SlotId(1),
+            "The CustomSprites slot that loads at startup. Values: slot1 to slot9. Old st1 to st9 values still work.");
 
         _backupCountSetting = Config.Bind("General", "BackupCount", DefaultBackupCount,
             new ConfigDescription(
                 "Number of backup folders to keep for each slot. Older backups are deleted. 0 keeps all backups.",
                 new AcceptableValueRange<int>(0, MaxBackupCount)));
 
-        EnsureCustomSpritesStructure();
+        bool rootCreated = !Directory.Exists(SpritesPath);
+        Directory.CreateDirectory(SpritesPath);
+        foreach (string message in SlotFolders.Migrate(SpritesPath, SlotCount))
+            Log.LogInfo(message);
 
-        string savedSlot = _activeSlotSetting.Value;
-        if (IsValidSlot(savedSlot) && CharacterFolderExists(savedSlot))
+        EnsureCustomSpritesStructure();
+        if (rootCreated)
+            Log.LogInfo("Created CustomSprites folder with slot1..slot9/Body|Head subfolders.");
+
+        string savedSlot = SlotFolders.Normalize(_activeSlotSetting.Value);
+        if (savedSlot != null && CharacterFolderExists(savedSlot))
         {
             _activeSlot = savedSlot;
             LoadCharacterSprites(savedSlot);
         }
-        else if (CharacterFolderExists("st1"))
+        else if (CharacterFolderExists(SlotFolders.SlotId(1)))
         {
-            _activeSlot = "st1";
-            LoadCharacterSprites("st1");
+            _activeSlot = SlotFolders.SlotId(1);
+            LoadCharacterSprites(_activeSlot);
         }
         else
         {
@@ -81,9 +88,11 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             }
             else
             {
-                Log.LogWarning("No CustomSprites/st* folders found! Mod will be inactive.");
+                Log.LogWarning("No CustomSprites/slot* folders found! Mod will be inactive.");
             }
         }
+
+        SaveActiveSlot(_activeSlot);
 
         var harmony = new Harmony("com.yourname.spritereplacer");
         harmony.PatchAll();
@@ -150,18 +159,20 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             GameObject selected = eventSystem.currentSelectedGameObject;
             if (selected == null) return false;
 
-            InputField field = selected.GetComponentInParent<InputField>();
+            TMP_InputField field = selected.GetComponentInParent<TMP_InputField>();
             return field != null && field.isFocused;
         }
     }
 
     public static bool SwitchToSlot(string slot, bool forceReload = false)
     {
-        if (!IsValidSlot(slot))
+        string normalized = SlotFolders.Normalize(slot);
+        if (normalized == null)
         {
             Log.LogWarning("Invalid slot: " + slot);
             return false;
         }
+        slot = normalized;
 
         if (!forceReload && slot == _activeSlot && LoadedSprites.Count > 0)
         {
@@ -183,13 +194,6 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         SkinMenuUI.RefreshSelection();
         Log.LogInfo("Switched to " + slot);
         return true;
-    }
-
-    internal static bool IsValidSlot(string slot)
-    {
-        return !string.IsNullOrEmpty(slot) && slot.Length == 3 &&
-               slot.StartsWith("st", StringComparison.Ordinal) &&
-               slot[2] >= '1' && slot[2] <= '9';
     }
 
     private static void SaveActiveSlot(string slot)
@@ -215,7 +219,10 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     internal static bool CharacterFolderExists(string character)
     {
-        string basePath = Path.Combine(SpritesPath, character);
+        string normalized = SlotFolders.Normalize(character);
+        if (normalized == null) return false;
+
+        string basePath = Path.Combine(SpritesPath, normalized);
         string bodyPath = Path.Combine(basePath, "Body");
         string headPath = Path.Combine(basePath, "Head");
         // Empty prepared dirs don't count as an available character; need actual png sprites.
@@ -226,27 +233,22 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     private static void EnsureCustomSpritesStructure()
     {
         string root = SpritesPath;
-        bool created = !Directory.Exists(root);
-        Directory.CreateDirectory(root);
 
         for (int i = 1; i <= SlotCount; i++)
         {
-            string st = Path.Combine(root, "st" + i);
-            Directory.CreateDirectory(Path.Combine(st, "Body"));
-            Directory.CreateDirectory(Path.Combine(st, "Head"));
+            string slot = Path.Combine(root, SlotFolders.SlotId(i));
+            Directory.CreateDirectory(Path.Combine(slot, "Body"));
+            Directory.CreateDirectory(Path.Combine(slot, "Head"));
         }
-
-        if (created)
-            Log.LogInfo("Created CustomSprites folder with st1..st9/Body|Head subfolders.");
     }
 
     private static string FindFirstAvailableCharacter()
     {
         for (int i = 1; i <= SlotCount; i++)
         {
-            string c = "st" + i;
-            if (CharacterFolderExists(c))
-                return c;
+            string slot = SlotFolders.SlotId(i);
+            if (CharacterFolderExists(slot))
+                return slot;
         }
         return null;
     }

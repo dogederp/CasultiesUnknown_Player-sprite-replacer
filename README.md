@@ -38,11 +38,12 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 ## Usage
 
 - Click the **top-left button** in the main menu or the Escape menu.
-- The skin selector shows all nine slots: `st1` through `st9`.
+- The menu uses the game font, text colors, and button style. The mod reads them from the game settings menu at startup.
+- The skin selector shows all nine slots: `slot1` through `slot9`.
 - **Select** uses an existing slot. **Switch** imports a whole skin folder into that slot.
 - **Numpad 1 through 9** changes the active slot while you play.
 - The mod remembers the last slot you selected and loads it at the next launch.
-- The mod looks for sprites in `CustomSprites/st1` up to `CustomSprites/st9`.
+- The mod looks for sprites in `CustomSprites/slot1` up to `CustomSprites/slot9`. Old `st1` to `st9` folders are renamed on the first launch.
 - A slot can also contain a `WoundView` subfolder. The mod replaces the wound screen art with these sprites.
 - The button is hidden in the wound view, crafting panel, trade menu, and settings menu.
 - With CUCoreLib installed, the game's settings menu has a **Skin Replacer** tab with an active-slot dropdown and a backup-count option.
@@ -64,12 +65,12 @@ The mod does not create a pause and does not change the time scale.
 
 ## Sprite Credits
 
-- st1 contains Mottrew by beebigirl https://skin.cat-bot.de/?skinid=163&page=4#skin-163
-- (st2-st9) I copied the sprite files from GitHub user **Paili-16**. (I know I could have extracted them from the game files myself, but I wanted to save time.)
+- slot1 contains Mottrew by beebigirl https://skin.cat-bot.de/?skinid=163&page=4#skin-163
+- (slot2 to slot9) I copied the sprite files from GitHub user **Paili-16**. (I know I could have extracted them from the game files myself, but I wanted to save time.)
 
 ## Making Your Own Player Sprites
 
-1. Back up your current `CustomSprites/st1/Body` and `CustomSprites/st1/Head` folders (or any other `st1`-`st9` folder) first.
+1. Back up your current `CustomSprites/slot1/Body` and `CustomSprites/slot1/Head` folders (or any other `slot1` to `slot9` folder) first.
 2. Edit the images in those folders.
 3. Keep the same dimensions/image sizes as the originals. Do not change the file names.
 

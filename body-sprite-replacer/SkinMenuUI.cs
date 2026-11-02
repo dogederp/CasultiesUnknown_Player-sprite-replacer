@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -15,18 +16,18 @@ internal static class SkinMenuUI
     private static GameObject _grid;
     private static GameObject _browserWindow;
     private static GameObject _browserBackdrop;
-    private static InputField _pathInput;
+    private static TMP_InputField _pathInput;
     private static RectTransform _listContent;
     private static ScrollRect _listScroll;
-    private static Text _statusText;
+    private static TextMeshProUGUI _statusText;
     private static ScrollRect _statusScroll;
     private static string _browserPath;
     private static string _pendingSlot;
     private static bool _visible;
-    private static Font _font;
     private static Sprite _placeholder;
 
     private static readonly Dictionary<string, Image> _cardBackgrounds = new Dictionary<string, Image>();
+    private static readonly Dictionary<string, Outline> _cardOutlines = new Dictionary<string, Outline>();
     private static readonly List<Texture2D> _previewTextures = new List<Texture2D>();
 
     internal static bool IsFolderBrowserOpen => _browserWindow != null;
@@ -35,7 +36,7 @@ internal static class SkinMenuUI
     {
         if (_canvas != null) return;
 
-        GetFont();
+        GameTheme.Resolve();
         _placeholder = SpriteReplacerPlugin.LoadEmbeddedSprite("body_sprite_replacer.resources.placeholder.png");
 
         GameObject canvasObj = new GameObject("SpriteReplacerMenuCanvas");
@@ -45,8 +46,8 @@ internal static class SkinMenuUI
 
         CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.referenceResolution = GameTheme.ReferenceResolution;
+        scaler.matchWidthOrHeight = GameTheme.MatchWidthOrHeight;
 
         canvasObj.AddComponent<GraphicRaycaster>();
         UnityEngine.Object.DontDestroyOnLoad(canvasObj);
@@ -75,8 +76,13 @@ internal static class SkinMenuUI
     {
         foreach (var pair in _cardBackgrounds)
         {
+            bool active = pair.Key == SpriteReplacerPlugin.ActiveSlot;
+
             if (pair.Value != null)
-                pair.Value.color = CardColor(pair.Key == SpriteReplacerPlugin.ActiveSlot);
+                pair.Value.color = active ? GameTheme.ActiveCardColor : GameTheme.CardColor;
+
+            if (_cardOutlines.TryGetValue(pair.Key, out Outline outline) && outline != null)
+                outline.effectColor = active ? GameTheme.AccentColor : GameTheme.BorderColor;
         }
     }
 
@@ -122,22 +128,30 @@ internal static class SkinMenuUI
             Vector2.zero, new Vector2(WindowWidth, WindowHeight));
 
         Image background = window.AddComponent<Image>();
-        background.color = new Color(0.08f, 0.08f, 0.08f, 0.96f);
+        GameTheme.StylePanel(background);
 
-        Text title = CreateText(window.transform, "Title", "Skin Replacer", 26, Color.white, TextAnchor.MiddleLeft);
-        SetRect(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(24f, -8f), new Vector2(400f, 36f));
+        GameObject bar = new GameObject("HeaderBar");
+        bar.transform.SetParent(window.transform, false);
+        RectTransform barRect = bar.AddComponent<RectTransform>();
+        SetRect(barRect, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f),
+            Vector2.zero, new Vector2(0f, 60f));
+        bar.AddComponent<Image>().color = GameTheme.HeaderColor;
 
-        Text hint = CreateText(window.transform, "Hint",
-            "Numpad 1-9 also changes the active slot. Switch imports a skin folder into a slot.",
-            13, new Color(0.7f, 0.7f, 0.7f), TextAnchor.MiddleLeft);
-        SetRect(hint.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(24f, -44f), new Vector2(700f, 22f));
+        TextMeshProUGUI title = CreateText(bar.transform, "Title", "Skin Replacer", 30,
+            GameTheme.TextColor, TextAlignmentOptions.MidlineLeft);
+        SetRect(title.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0.5f),
+            new Vector2(24f, 0f), new Vector2(500f, 0f));
 
-        Button close = CreateButton(window.transform, "Close", "X", new Color(0.45f, 0.18f, 0.18f, 1f), 18);
-        SetRect(close.GetComponent<RectTransform>(), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
-            new Vector2(-12f, -10f), new Vector2(36f, 36f));
+        Button close = CreateButton(bar.transform, "Close", "X", GameTheme.DangerColor, 20);
+        SetRect(close.GetComponent<RectTransform>(), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+            new Vector2(-14f, 0f), new Vector2(40f, 40f));
         close.onClick.AddListener(ClosePopup);
+
+        TextMeshProUGUI hint = CreateText(window.transform, "Hint",
+            "Numpad 1-9 also changes the active slot. Switch imports a skin folder into a slot.",
+            16, GameTheme.MutedColor, TextAlignmentOptions.MidlineLeft);
+        SetRect(hint.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(24f, -66f), new Vector2(700f, 24f));
 
         _popupWindow = window;
         BuildGrid();
@@ -155,13 +169,14 @@ internal static class SkinMenuUI
 
         ClearPreviewTextures();
         _cardBackgrounds.Clear();
+        _cardOutlines.Clear();
 
         GameObject gridObj = new GameObject("CharacterGrid");
         gridObj.transform.SetParent(_popupWindow.transform, false);
 
         RectTransform gridRect = gridObj.AddComponent<RectTransform>();
         SetRect(gridRect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -80f), new Vector2(740f, 496f));
+            new Vector2(0f, -96f), new Vector2(740f, 476f));
         _grid = gridObj;
 
         const int columns = 3;
@@ -177,7 +192,7 @@ internal static class SkinMenuUI
             int column = index % columns;
             float x = startX + column * (cellWidth + gap);
             float y = -(row * (cellHeight + gap) + cellHeight / 2f);
-            CreateCard(gridObj.transform, "st" + i, x, y, cellWidth, cellHeight);
+            CreateCard(gridObj.transform, SlotFolders.SlotId(i), x, y, cellWidth, cellHeight);
         }
 
         RefreshSelection();
@@ -194,9 +209,17 @@ internal static class SkinMenuUI
         SetRect(rect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
             new Vector2(x, y), new Vector2(width, height));
 
+        bool active = slot == SpriteReplacerPlugin.ActiveSlot;
+
         Image background = card.AddComponent<Image>();
-        background.color = CardColor(slot == SpriteReplacerPlugin.ActiveSlot);
+        background.color = active ? GameTheme.ActiveCardColor : GameTheme.CardColor;
         _cardBackgrounds[slot] = background;
+
+        Outline outline = card.AddComponent<Outline>();
+        outline.effectColor = active ? GameTheme.AccentColor : GameTheme.BorderColor;
+        outline.effectDistance = new Vector2(1.5f, -1.5f);
+        outline.useGraphicAlpha = false;
+        _cardOutlines[slot] = outline;
 
         GameObject previewObj = new GameObject("Preview");
         previewObj.transform.SetParent(card.transform, false);
@@ -209,29 +232,22 @@ internal static class SkinMenuUI
         preview.preserveAspect = true;
         preview.color = hasSkin ? Color.white : new Color(1f, 1f, 1f, 0.35f);
 
-        Text label = CreateText(card.transform, "SlotLabel",
-            hasSkin ? slot : slot + " (empty)",
-            15, hasSkin ? Color.white : new Color(0.7f, 0.7f, 0.7f), TextAnchor.MiddleCenter);
+        TextMeshProUGUI label = CreateText(card.transform, "SlotLabel",
+            hasSkin ? SlotFolders.DisplayName(slot) : SlotFolders.DisplayName(slot) + " (empty)",
+            18, hasSkin ? GameTheme.TextColor : GameTheme.MutedColor, TextAlignmentOptions.Center);
         SetRect(label.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -84f), new Vector2(216f, 20f));
+            new Vector2(0f, -82f), new Vector2(216f, 24f));
 
-        Button select = CreateButton(card.transform, "Select", "Select", new Color(0.16f, 0.36f, 0.58f, 1f), 14);
+        Button select = CreateButton(card.transform, "Select", "Select", GameTheme.TextColor, 16);
         SetRect(select.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-            new Vector2(-56f, 8f), new Vector2(104f, 26f));
+            new Vector2(-56f, 8f), new Vector2(104f, 28f));
         select.interactable = hasSkin;
         select.onClick.AddListener(() => SpriteReplacerPlugin.SwitchToSlot(slot));
 
-        Button switchButton = CreateButton(card.transform, "Switch", "Switch", new Color(0.18f, 0.45f, 0.25f, 1f), 14);
+        Button switchButton = CreateButton(card.transform, "Switch", "Switch", GameTheme.SuccessColor, 16);
         SetRect(switchButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-            new Vector2(56f, 8f), new Vector2(104f, 26f));
+            new Vector2(56f, 8f), new Vector2(104f, 28f));
         switchButton.onClick.AddListener(() => OpenFolderBrowser(slot));
-    }
-
-    private static Color CardColor(bool active)
-    {
-        return active
-            ? new Color(0.18f, 0.30f, 0.42f, 1f)
-            : new Color(0.14f, 0.14f, 0.14f, 1f);
     }
 
     private static Sprite LoadHeadPreview(string slot)
@@ -309,7 +325,7 @@ internal static class SkinMenuUI
         RectTransform backdropRect = backdrop.AddComponent<RectTransform>();
         SetRect(backdropRect, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
         Image backdropImage = backdrop.AddComponent<Image>();
-        backdropImage.color = new Color(0f, 0f, 0f, 0.65f);
+        backdropImage.color = new Color(0f, 0f, 0f, 0.7f);
         _browserBackdrop = backdrop;
 
         GameObject window = new GameObject("SkinBrowserWindow");
@@ -319,40 +335,47 @@ internal static class SkinMenuUI
             Vector2.zero, new Vector2(760f, 560f));
 
         Image background = window.AddComponent<Image>();
-        background.color = new Color(0.1f, 0.1f, 0.1f, 0.98f);
+        GameTheme.StylePanel(background);
         _browserWindow = window;
 
-        Text header = CreateText(window.transform, "Header",
-            "Switch " + _pendingSlot + ": choose a skin folder",
-            20, Color.white, TextAnchor.MiddleLeft);
-        SetRect(header.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(24f, -12f), new Vector2(700f, 30f));
+        GameObject bar = new GameObject("HeaderBar");
+        bar.transform.SetParent(window.transform, false);
+        RectTransform barRect = bar.AddComponent<RectTransform>();
+        SetRect(barRect, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f),
+            Vector2.zero, new Vector2(0f, 48f));
+        bar.AddComponent<Image>().color = GameTheme.HeaderColor;
 
-        Button up = CreateButton(window.transform, "Up", "Up", new Color(0.22f, 0.22f, 0.22f, 1f), 14);
+        TextMeshProUGUI header = CreateText(bar.transform, "Header",
+            "Switch " + SlotFolders.DisplayName(_pendingSlot) + ": choose a skin folder",
+            24, GameTheme.TextColor, TextAlignmentOptions.MidlineLeft);
+        SetRect(header.rectTransform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            Vector2.zero, new Vector2(-48f, 0f));
+
+        Button up = CreateButton(window.transform, "Up", "Up", GameTheme.TextColor, 16);
         SetRect(up.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(24f, -50f), new Vector2(56f, 32f));
+            new Vector2(24f, -56f), new Vector2(56f, 32f));
         up.onClick.AddListener(NavigateUp);
 
         _pathInput = CreateInputField(window.transform, "PathInput");
         SetRect(_pathInput.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(88f, -50f), new Vector2(500f, 32f));
+            new Vector2(88f, -56f), new Vector2(500f, 32f));
         _pathInput.onEndEdit.AddListener(Navigate);
 
-        Button go = CreateButton(window.transform, "Go", "Go", new Color(0.2f, 0.35f, 0.55f, 1f), 14);
+        Button go = CreateButton(window.transform, "Go", "Go", GameTheme.TextColor, 16);
         SetRect(go.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(596f, -50f), new Vector2(60f, 32f));
+            new Vector2(596f, -56f), new Vector2(60f, 32f));
         go.onClick.AddListener(() => Navigate(_pathInput.text));
 
-        Button drives = CreateButton(window.transform, "Drives", "Drives", new Color(0.22f, 0.22f, 0.22f, 1f), 14);
+        Button drives = CreateButton(window.transform, "Drives", "Drives", GameTheme.TextColor, 16);
         SetRect(drives.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(664f, -50f), new Vector2(72f, 32f));
+            new Vector2(664f, -56f), new Vector2(72f, 32f));
         drives.onClick.AddListener(ShowDrives);
 
         GameObject statusBox = new GameObject("StatusBox");
         statusBox.transform.SetParent(window.transform, false);
         RectTransform statusBoxRect = statusBox.AddComponent<RectTransform>();
         SetRect(statusBoxRect, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(24f, -88f), new Vector2(712f, 104f));
+            new Vector2(24f, -96f), new Vector2(712f, 100f));
         _statusScroll = statusBox.AddComponent<ScrollRect>();
 
         GameObject statusViewport = new GameObject("Viewport");
@@ -366,9 +389,9 @@ internal static class SkinMenuUI
 
         _statusText = CreateText(statusViewport.transform, "Status",
             "Choose the folder that contains Body and Head.",
-            12, new Color(0.8f, 0.8f, 0.8f), TextAnchor.UpperLeft);
-        _statusText.supportRichText = false;
-        _statusText.verticalOverflow = VerticalWrapMode.Overflow;
+            14, GameTheme.MutedColor, TextAlignmentOptions.TopLeft);
+        _statusText.richText = false;
+        _statusText.overflowMode = TextOverflowModes.Overflow;
         RectTransform statusTextRect = _statusText.rectTransform;
         statusTextRect.anchorMin = new Vector2(0f, 1f);
         statusTextRect.anchorMax = new Vector2(1f, 1f);
@@ -389,7 +412,7 @@ internal static class SkinMenuUI
         list.transform.SetParent(window.transform, false);
         RectTransform listRect = list.AddComponent<RectTransform>();
         SetRect(listRect, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(24f, -196f), new Vector2(712f, 300f));
+            new Vector2(24f, -200f), new Vector2(712f, 296f));
         _listScroll = list.AddComponent<ScrollRect>();
 
         GameObject viewport = new GameObject("Viewport");
@@ -426,43 +449,57 @@ internal static class SkinMenuUI
         _listScroll.movementType = ScrollRect.MovementType.Clamped;
         _listScroll.scrollSensitivity = 30f;
 
-        Button use = CreateButton(window.transform, "Use", "Use this folder", new Color(0.18f, 0.45f, 0.25f, 1f), 15);
+        Button use = CreateButton(window.transform, "Use", "Use this folder", GameTheme.SuccessColor, 16);
         SetRect(use.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(24f, -516f), new Vector2(220f, 32f));
         use.onClick.AddListener(UseSelectedFolder);
 
-        Button close = CreateButton(window.transform, "Close", "Close", new Color(0.4f, 0.18f, 0.18f, 1f), 15);
+        Button close = CreateButton(window.transform, "Close", "Close", GameTheme.DangerColor, 16);
         SetRect(close.GetComponent<RectTransform>(), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
             new Vector2(-24f, -516f), new Vector2(96f, 32f));
         close.onClick.AddListener(CloseFolderBrowser);
     }
 
-    private static InputField CreateInputField(Transform parent, string name)
+    private static TMP_InputField CreateInputField(Transform parent, string name)
     {
         GameObject obj = new GameObject(name);
         obj.transform.SetParent(parent, false);
         obj.AddComponent<RectTransform>();
+        obj.SetActive(false);
 
         Image background = obj.AddComponent<Image>();
-        background.color = new Color(0.16f, 0.16f, 0.16f, 1f);
+        background.color = GameTheme.InputColor;
 
-        InputField field = obj.AddComponent<InputField>();
+        TMP_InputField field = obj.AddComponent<TMP_InputField>();
         field.targetGraphic = background;
-        field.lineType = InputField.LineType.SingleLine;
+        field.lineType = TMP_InputField.LineType.SingleLine;
 
-        Text text = CreateText(obj.transform, "Text", "", 15, Color.white, TextAnchor.MiddleLeft);
+        GameObject viewport = new GameObject("TextArea");
+        viewport.transform.SetParent(obj.transform, false);
+        RectTransform viewportRect = viewport.AddComponent<RectTransform>();
+        SetRect(viewportRect, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            new Vector2(8f, 0f), new Vector2(-16f, 0f));
+        viewport.AddComponent<RectMask2D>();
+
+        TextMeshProUGUI text = CreateText(viewport.transform, "Text", "", 16,
+            GameTheme.TextColor, TextAlignmentOptions.MidlineLeft);
         SetRect(text.rectTransform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
-            new Vector2(8f, 0f), new Vector2(-16f, 0f));
-        text.supportRichText = false;
-        field.textComponent = text;
+            Vector2.zero, Vector2.zero);
+        text.enableWordWrapping = false;
+        text.overflowMode = TextOverflowModes.Ellipsis;
 
-        Text placeholder = CreateText(obj.transform, "Placeholder", "Path", 15,
-            new Color(0.6f, 0.6f, 0.6f), TextAnchor.MiddleLeft);
+        TextMeshProUGUI placeholder = CreateText(viewport.transform, "Placeholder", "Path", 16,
+            GameTheme.MutedColor, TextAlignmentOptions.MidlineLeft);
         SetRect(placeholder.rectTransform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
-            new Vector2(8f, 0f), new Vector2(-16f, 0f));
-        placeholder.supportRichText = false;
-        field.placeholder = placeholder;
+            Vector2.zero, Vector2.zero);
+        placeholder.enableWordWrapping = false;
 
+        field.textViewport = viewportRect;
+        field.textComponent = text;
+        field.placeholder = placeholder;
+        field.caretWidth = 2;
+
+        obj.SetActive(true);
         return field;
     }
 
@@ -489,7 +526,7 @@ internal static class SkinMenuUI
         ClearList();
         _browserPath = string.Empty;
         if (_pathInput != null) _pathInput.text = string.Empty;
-        SetStatus("Select a drive.", new Color(0.8f, 0.8f, 0.8f));
+        SetStatus("Select a drive.", GameTheme.MutedColor);
 
         DriveInfo[] drives;
         try
@@ -498,7 +535,7 @@ internal static class SkinMenuUI
         }
         catch (Exception ex)
         {
-            SetStatus("Cannot list drives: " + ex.Message, new Color(1f, 0.45f, 0.45f));
+            SetStatus("Cannot list drives: " + ex.Message, GameTheme.DangerColor);
             return;
         }
 
@@ -524,19 +561,19 @@ internal static class SkinMenuUI
         }
         catch (Exception ex)
         {
-            SetStatus("Invalid path: " + ex.Message, new Color(1f, 0.45f, 0.45f));
+            SetStatus("Invalid path: " + ex.Message, GameTheme.DangerColor);
             return;
         }
 
         if (!Directory.Exists(path))
         {
-            SetStatus("Folder not found: " + path, new Color(1f, 0.45f, 0.45f));
+            SetStatus("Folder not found: " + path, GameTheme.DangerColor);
             return;
         }
 
         _browserPath = path;
         if (_pathInput != null) _pathInput.text = path;
-        SetStatus("Open a subfolder, or use this folder.", new Color(0.8f, 0.8f, 0.8f));
+        SetStatus("Open a subfolder, or use this folder.", GameTheme.MutedColor);
         PopulateList();
     }
 
@@ -551,7 +588,7 @@ internal static class SkinMenuUI
         }
         catch (Exception ex)
         {
-            SetStatus("Cannot read this folder: " + ex.Message, new Color(1f, 0.45f, 0.45f));
+            SetStatus("Cannot read this folder: " + ex.Message, GameTheme.DangerColor);
             return;
         }
 
@@ -573,8 +610,8 @@ internal static class SkinMenuUI
 
         if (count == 0)
         {
-            Text empty = CreateText(_listContent, "Empty", "No subfolders.", 14,
-                new Color(0.6f, 0.6f, 0.6f), TextAnchor.MiddleLeft);
+            TextMeshProUGUI empty = CreateText(_listContent, "Empty", "No subfolders.", 16,
+                GameTheme.MutedColor, TextAlignmentOptions.MidlineLeft);
             LayoutElement element = empty.gameObject.AddComponent<LayoutElement>();
             element.minHeight = 28f;
         }
@@ -584,17 +621,16 @@ internal static class SkinMenuUI
 
     private static void AddFolderButton(string label, string path)
     {
-        Button button = CreateButton(_listContent, "Folder", label,
-            new Color(0.16f, 0.16f, 0.16f, 1f), 14);
+        Button button = CreateButton(_listContent, "Folder", label, GameTheme.TextColor, 16);
 
         LayoutElement element = button.gameObject.AddComponent<LayoutElement>();
         element.minHeight = 28f;
         element.preferredHeight = 28f;
 
-        Text text = button.GetComponentInChildren<Text>();
+        TMP_Text text = button.GetComponentInChildren<TMP_Text>();
         if (text != null)
         {
-            text.alignment = TextAnchor.MiddleLeft;
+            text.alignment = TextAlignmentOptions.MidlineLeft;
             text.rectTransform.offsetMin = new Vector2(8f, 0f);
             text.rectTransform.offsetMax = new Vector2(-8f, 0f);
         }
@@ -620,7 +656,7 @@ internal static class SkinMenuUI
 
         if (string.IsNullOrEmpty(_browserPath))
         {
-            SetStatus("Select a folder first.", new Color(1f, 0.45f, 0.45f));
+            SetStatus("Select a folder first.", GameTheme.DangerColor);
             return;
         }
 
@@ -628,14 +664,14 @@ internal static class SkinMenuUI
         string prepareError;
         if (!SkinImporter.PrepareSkinFolder(_browserPath, _pendingSlot, out movedHead, out prepareError))
         {
-            SetStatus(prepareError, new Color(1f, 0.45f, 0.45f));
+            SetStatus(prepareError, GameTheme.DangerColor);
             return;
         }
 
         SkinCheckResult check = SkinImporter.Check(_browserPath, _pendingSlot);
         if (!check.Ok)
         {
-            SetStatus(string.Join("\n", check.Errors.Take(3)), new Color(1f, 0.45f, 0.45f));
+            SetStatus(string.Join("\n", check.Errors.Take(3)), GameTheme.DangerColor);
             return;
         }
 
@@ -643,14 +679,14 @@ internal static class SkinMenuUI
         string error;
         if (!SkinImporter.Import(_browserPath, _pendingSlot, out backup, out error))
         {
-            SetStatus("Import failed: " + error, new Color(1f, 0.45f, 0.45f));
+            SetStatus("Import failed: " + error, GameTheme.DangerColor);
             return;
         }
 
         string message = "";
         if (movedHead > 0) message += "Moved " + movedHead + " Head sprites into Head.\n";
-        message += "Imported " + check.TotalCount + " sprites into " + _pendingSlot + ".";
-        Color messageColor = new Color(0.55f, 1f, 0.55f);
+        message += "Imported " + check.TotalCount + " sprites into " + SlotFolders.DisplayName(_pendingSlot) + ".";
+        Color messageColor = GameTheme.SuccessColor;
 
         if (check.Warnings.Count > 0)
         {
@@ -658,7 +694,7 @@ internal static class SkinMenuUI
             lines.Add("Warnings (" + check.Warnings.Count + "):");
             foreach (string warning in check.Warnings) lines.Add("Warning: " + warning);
             message += "\n" + string.Join("\n", lines);
-            messageColor = new Color(1f, 0.85f, 0.4f);
+            messageColor = GameTheme.WarningColor;
         }
 
         if (!string.IsNullOrEmpty(backup)) SpriteReplacerPlugin.Log.LogInfo("Backup: " + backup);
@@ -697,58 +733,47 @@ internal static class SkinMenuUI
         _statusScroll = null;
     }
 
-    private static Text CreateText(Transform parent, string name, string text, int size, Color color, TextAnchor anchor)
+    private static TextMeshProUGUI CreateText(Transform parent, string name, string text, int size, Color color,
+        TextAlignmentOptions alignment)
     {
         GameObject obj = new GameObject(name);
         obj.transform.SetParent(parent, false);
         obj.AddComponent<RectTransform>();
 
-        Text label = obj.AddComponent<Text>();
-        label.font = GetFont();
+        TextMeshProUGUI label = obj.AddComponent<TextMeshProUGUI>();
+        label.font = GameTheme.Font;
         label.text = text;
         label.fontSize = size;
         label.color = color;
-        label.alignment = anchor;
-        label.horizontalOverflow = HorizontalWrapMode.Wrap;
-        label.verticalOverflow = VerticalWrapMode.Overflow;
+        label.alignment = alignment;
+        label.enableWordWrapping = true;
+        label.overflowMode = TextOverflowModes.Overflow;
         label.raycastTarget = false;
         return label;
     }
 
-    private static Button CreateButton(Transform parent, string name, string label, Color color, int fontSize)
+    private static Button CreateButton(Transform parent, string name, string label, Color labelColor, int fontSize)
     {
         GameObject obj = new GameObject(name);
         obj.transform.SetParent(parent, false);
         obj.AddComponent<RectTransform>();
 
         Image image = obj.AddComponent<Image>();
-        image.color = color;
+        GameTheme.StyleButton(image);
 
         Button button = obj.AddComponent<Button>();
         button.targetGraphic = image;
+        button.colors = GameTheme.ButtonColors;
 
-        ColorBlock colors = button.colors;
-        colors.normalColor = Color.white;
-        colors.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
-        colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
-        colors.disabledColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);
-        button.colors = colors;
-
-        Text text = CreateText(obj.transform, "Label", label, fontSize, Color.white, TextAnchor.MiddleCenter);
+        TextMeshProUGUI text = CreateText(obj.transform, "Label", label, fontSize, labelColor,
+            TextAlignmentOptions.Center);
         SetRect(text.rectTransform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
         text.rectTransform.offsetMin = new Vector2(4f, 0f);
         text.rectTransform.offsetMax = new Vector2(-4f, 0f);
-        text.horizontalOverflow = HorizontalWrapMode.Overflow;
+        text.enableWordWrapping = false;
 
         return button;
-    }
-
-    private static Font GetFont()
-    {
-        if (_font == null)
-            _font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        return _font;
     }
 
     private static void SetRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot,

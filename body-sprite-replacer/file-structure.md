@@ -1,15 +1,18 @@
-# This file describes the expected file structure for the Body Sprite Replacer mod. The mod should be placed in the `BepInEx/plugins` directory, and custom sprites should be organized in subdirectories under `CustomSprites`, with each subdirectory named according to the character (e.g., `st1`, `st2`, etc.). Each character's directory should contain separate folders for body and head sprites, plus an optional folder for wound view sprites.
+# File structure
+
+The mod goes in `BepInEx/plugins`. Custom sprites go in subfolders under `CustomSprites`. Each folder holds one skin set: `slot1` to `slot9`. Each folder can contain a `Body`, a `Head`, and an optional `WoundView` subfolder.
+
 ```
 BepInEx/
 └── plugins/
     ├── body_sprite_replacer.dll
     └── CustomSprites/
         ├── backups/
-        │   └── st1_20261031_120000/
+        │   └── slot1_20261031_120000/
         │       ├── Body/
         │       ├── Head/
         │       └── WoundView/
-        ├── st1/
+        ├── slot1/
         │   ├── Body/
         │   │   ├── some_body_sprite.png
         │   │   └── ...
@@ -19,11 +22,13 @@ BepInEx/
         │   └── WoundView/
         │       ├── abdomenMiddle.png
         │       └── ...
-        ├── st2/
+        ├── slot2/
         │   ├── Body/
         │   ├── Head/
         │   └── WoundView/
-        └── ... (up to st9)
+        └── ... (up to slot9)
 ```
 
 The **Switch** button writes a timestamped copy of the target slot to `backups/` before it replaces files. The mod creates `backups/` on demand. Each backup keeps the old `Body`, `Head`, and `WoundView` folders. The mod keeps the newest 5 backups for each slot by default. The **Backups kept per slot** setting changes the count. `0` keeps all backups.
+
+Old `st1` to `st9` folders are renamed to `slot1` to `slot9` on the first launch. If both folders exist, the mod keeps both and uses the new name. Old backups with an `stN_` prefix still count toward the limit and are pruned.

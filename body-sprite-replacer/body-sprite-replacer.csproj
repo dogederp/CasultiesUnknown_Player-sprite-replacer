@@ -63,6 +63,10 @@
       <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="CUCoreLib">
       <HintPath>$(GameDir)\BepInEx\plugins\CUCoreLib.dll</HintPath>
       <Private>False</Private>
