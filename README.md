@@ -13,7 +13,7 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 
 - Loader: **BepInEx 5.4.23.5**
 - Game version: **Steam demo, April 21, 2026 build**
-- Optional: **CUCoreLib 1.0.6.1 or newer** for the in-game settings tab. The skin selector works without it.
+- Optional: **CUCoreLib 1.0.6.1 or newer** for the in-game settings tab and multiplayer. Multiplayer also needs **Casualties Together 5.2.0**. The single-player skin selector works without CUCoreLib.
 
 ## About This Project
 
@@ -26,7 +26,7 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 
 1. Open this repository's `body-sprite-replacer/plugins` folder.
 2. Drag/copy its contents into your game's BepInEx `plugins` folder.
-3. Optional: copy `CUCoreLib.dll` into the same folder to get the Skin Replacer settings tab.
+3. Optional for single-player, required for multiplayer: copy `CUCoreLib.dll` into the same folder. For multiplayer, also install **Casualties Together 5.2.0**.
 4. Start the game.
 
 ### If BepInEx is not installed yet
@@ -46,7 +46,17 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 - The mod looks for sprites in `CustomSprites/slot1` up to `CustomSprites/slot9`. Old `st1` to `st9` folders are renamed on the first launch.
 - A slot can also contain a `WoundView` subfolder. The mod replaces the wound screen art with these sprites.
 - The button is hidden in the wound view, crafting panel, trade menu, and settings menu.
-- With CUCoreLib installed, the game's settings menu has a **Skin Replacer** tab with an active-slot dropdown and a backup-count option.
+- With CUCoreLib installed, the game's settings menu has a **Skin Replacer** tab with the **Backups kept per slot** option. Use the skin menu cards or Numpad 1-9 to select the active slot.
+
+### Multiplayer
+
+- Multiplayer uses **Casualties Together 5.2.0** and **CUCoreLib 1.0.6.1** or newer.
+- Each player keeps their own active slot. The mod shares the chosen skin with the other clients.
+- A client that joins after the game loads receives the skins already in the session.
+- The host can lock skins from the skin menu. A locked client cannot change. A client that joins while locked gets one change.
+- The active slot is local to each player. The CUCoreLib tab only has the backup count.
+- The WoundView stays local.
+- Disable ChangeSkinMP and other skin mods before you use this mod in multiplayer.
 
 ### Switch and backups
 

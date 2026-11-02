@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System;
 
-[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.3.0")]
+[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.4.0")]
 [BepInDependency("net.cucorelib", BepInDependency.DependencyFlags.SoftDependency)]
 public class SpriteReplacerPlugin : BaseUnityPlugin
 {
@@ -137,6 +137,8 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         private void Update()
         {
             SkinMenuUI.SetVisible(MenuGate.ShouldShowButton());
+            MpBody.Tick();
+            MpSkinSync.Tick();
 
             if (SkinMenuUI.IsFolderBrowserOpen) return;
             if (IsInputFieldFocused()) return;
@@ -174,6 +176,14 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         }
         slot = normalized;
 
+        if (!SkinLock.CanChangeLocal)
+        {
+            SkinMenuUI.ShowStatus("Skins locked by host.", GameTheme.WarningColor);
+            CoreLibIntegration.StoreActiveSlot(_activeSlot);
+            Log.LogInfo("Skin change blocked: skins are locked.");
+            return false;
+        }
+
         if (!forceReload && slot == _activeSlot && LoadedSprites.Count > 0)
         {
             SkinMenuUI.RefreshSelection();
@@ -191,6 +201,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         CoreLibIntegration.StoreActiveSlot(slot);
         LoadCharacterSprites(slot);
         ApplyToAll();
+        MpSkinSync.OnLocalSkinChanged();
         SkinMenuUI.RefreshSelection();
         Log.LogInfo("Switched to " + slot);
         return true;
@@ -330,8 +341,15 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         }
     }
 
-    private static void ApplyToAll()
+    internal static void ApplyToAll()
     {
+        if (MpBody.IsActive)
+        {
+            MpBody.ApplyLocalSkin(LoadedSprites);
+            WoundViewIntegration.ApplyAll();
+            return;
+        }
+
         foreach (var limb in UnityEngine.Object.FindObjectsOfType<Limb>())
         {
             ApplyReplacement(limb);
@@ -349,6 +367,8 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     public static void ApplyReplacement(Limb limb)
     {
+        if (!MpBody.CanApply(limb.body)) return;
+
         SpriteRenderer sr = limb.GetComponent<SpriteRenderer>();
         if (sr != null && sr.sprite != null && LoadedSprites.TryGetValue(sr.sprite.name, out Sprite replacement))
         {
@@ -358,6 +378,8 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     public static void ApplyReplacementToTail(TailScript tail)
     {
+        if (!MpBody.CanApply(tail.GetComponentInParent<Body>())) return;
+
         SpriteRenderer sr = tail.GetComponent<SpriteRenderer>();
         if (sr != null && sr.sprite != null && LoadedSprites.TryGetValue(sr.sprite.name, out Sprite replacement))
         {
@@ -367,6 +389,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     public static void ApplyReplacementToFace(FacialExpression face)
     {
+        if (!MpBody.CanApply(face.body)) return;
         face.defaultHead = ReplaceSprite(face.defaultHead);
         face.defaultHeadMouth = ReplaceSprite(face.defaultHeadMouth);
         face.defaultHeadMouthHalf = ReplaceSprite(face.defaultHeadMouthHalf);
@@ -401,9 +424,11 @@ public class LimbAwakePatch
 {
     static void Postfix(Limb __instance)
     {
+        if (MpBody.IsActive) return;
+
         SpriteRenderer sr = __instance.GetComponent<SpriteRenderer>();
         if (sr != null && sr.sprite != null)
-            SpriteReplacerPlugin.Log.LogInfo("[SpriteReplacer] Limb sprite name: '" + sr.sprite.name + "'");
+            SpriteReplacerPlugin.Log.LogDebug("[SpriteReplacer] Limb sprite name: '" + sr.sprite.name + "'");
 
         SpriteReplacerPlugin.ApplyReplacement(__instance);
     }
@@ -414,6 +439,7 @@ public class FacialExpressionStartPatch
 {
     static void Postfix(FacialExpression __instance)
     {
+        if (MpBody.IsActive) return;
         SpriteReplacerPlugin.ApplyReplacementToFace(__instance);
     }
 }
@@ -423,6 +449,7 @@ public class TailScriptStartPatch
 {
     static void Postfix(TailScript __instance)
     {
+        if (MpBody.IsActive) return;
         SpriteReplacerPlugin.ApplyReplacementToTail(__instance);
     }
 }

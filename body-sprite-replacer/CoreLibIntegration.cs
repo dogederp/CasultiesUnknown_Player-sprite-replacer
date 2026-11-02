@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using CUCoreLib.Data;
@@ -38,20 +37,8 @@ internal static class CoreLibIntegration
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void RegisterCoreLib()
     {
-        ModDropdownChoice[] choices = Enumerable.Range(1, SpriteReplacerPlugin.SlotCount)
-            .Select(i => new ModDropdownChoice(SlotFolders.SlotId(i), "Slot " + i))
-            .ToArray();
-
-        int defaultIndex = Math.Max(0, SlotFolders.Index(SpriteReplacerPlugin.ActiveSlot));
-        bool slotOk = ModOptionsRegistry.Register(ModOptionDefinition.Dropdown(
-            "spritereplacer.activeSlot",
-            "Active slot",
-            "Select the CustomSprites slot to use.",
-            "Skin Replacer",
-            defaultIndex,
-            choices,
-            OnDropdownChanged));
-
+        // The active slot is per-player. Do not register it as a CUCoreLib
+        // option, because CUCoreLib syncs every mod option from the host.
         bool backupOk = ModOptionsRegistry.Register(ModOptionDefinition.Int(
             "spritereplacer.backupCount",
             "Backups kept per slot",
@@ -62,18 +49,13 @@ internal static class CoreLibIntegration
             SpriteReplacerPlugin.MaxBackupCount,
             OnBackupCountChanged));
 
-        if (!slotOk)
-            SpriteReplacerPlugin.Log.LogWarning("CUCoreLib rejected the active slot option.");
         if (!backupOk)
             SpriteReplacerPlugin.Log.LogWarning("CUCoreLib rejected the backup count option.");
 
-        if (slotOk || backupOk)
+        if (backupOk)
         {
             SpriteReplacerPlugin.Log.LogInfo("CUCoreLib settings tab registered.");
-            // The game can re-apply saved settings after registration. Keep the
-            // stored values on the values that the config restored.
-            if (slotOk) StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);
-            if (backupOk) StoreBackupCount(SpriteReplacerPlugin.BackupCount);
+            StoreBackupCount(SpriteReplacerPlugin.BackupCount);
         }
     }
 
@@ -122,10 +104,5 @@ internal static class CoreLibIntegration
     {
         SpriteReplacerPlugin.SetBackupCount(value);
         SkinImporter.PruneAllBackups();
-    }
-
-    private static void OnDropdownChanged(int index)
-    {
-        SpriteReplacerPlugin.SwitchToSlot(SlotFolders.SlotId(index + 1));
     }
 }
