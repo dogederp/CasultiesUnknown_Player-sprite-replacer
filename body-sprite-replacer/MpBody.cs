@@ -33,12 +33,34 @@ internal static class MpBody
         }
     }
 
+    internal static bool IsClient
+    {
+        get
+        {
+            if (!CoreAvailable()) return false;
+            return ClientCore();
+        }
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool HostCore()
     {
         try
         {
             return MultiplayerApi.IsHost;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool ClientCore()
+    {
+        try
+        {
+            return MultiplayerApi.IsClient;
         }
         catch
         {

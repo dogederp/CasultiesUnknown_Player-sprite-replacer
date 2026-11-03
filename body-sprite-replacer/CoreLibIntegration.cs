@@ -61,6 +61,13 @@ internal static class CoreLibIntegration
 
     internal static void StoreActiveSlot(string slot)
     {
+        if (!IsAvailable()) return;
+        StoreActiveSlotCore(slot);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void StoreActiveSlotCore(string slot)
+    {
         try
         {
             if (Settings.settings == null) return;
@@ -81,6 +88,13 @@ internal static class CoreLibIntegration
     }
 
     internal static void StoreBackupCount(int count)
+    {
+        if (!IsAvailable()) return;
+        StoreBackupCountCore(count);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void StoreBackupCountCore(int count)
     {
         try
         {

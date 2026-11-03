@@ -67,8 +67,12 @@
       <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\Unity.TextMeshPro.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="CUCoreLib">
+    <Reference Include="CUCoreLib" Condition="Exists('$(GameDir)\BepInEx\plugins\CUCoreLib.dll')">
       <HintPath>$(GameDir)\BepInEx\plugins\CUCoreLib.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="CUCoreLib" Condition="!Exists('$(GameDir)\BepInEx\plugins\CUCoreLib.dll')">
+      <HintPath>$(GameDir)\BepInEx\plugins\CUCoreLib.dll.disabled</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json">

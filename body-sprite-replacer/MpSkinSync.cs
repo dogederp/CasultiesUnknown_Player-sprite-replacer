@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using CUCoreLib.Networking;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -70,7 +71,7 @@ internal static class MpSkinSync
             MpSkinPackage package = MpSkinPackage.FromSlot(SpriteReplacerPlugin.ActiveSlot);
             if (package != null && SkinLock.CanChangeLocal)
             {
-                if (MultiplayerApi.IsHost)
+                if (MpBody.IsHost)
                 {
                     Store(localNetwork, localPlayer, package);
                     Broadcast(package, localNetwork, localPlayer);
@@ -89,11 +90,10 @@ internal static class MpSkinSync
             }
         }
 
-        if (!_requested && MultiplayerApi.IsClient && !MultiplayerApi.IsHost)
+        if (!_requested && MpBody.IsClient && !MpBody.IsHost)
         {
             _requested = true;
-            var request = new JObject { ["clientId"] = localNetwork };
-            MultiplayerApi.RequestServer(RequestChannel, request, OnSyncResponse, true);
+            RequestExistingSkins(localNetwork);
             Log("requested existing skins.");
         }
 
@@ -108,6 +108,20 @@ internal static class MpSkinSync
                 uint player = PlayerIds.TryGetValue(pair.Key, out uint id) ? id : 0;
                 MpBody.ApplyRemoteSkin(pair.Key, player, pair.Value.Sprites);
             }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void RequestExistingSkins(uint localNetwork)
+    {
+        try
+        {
+            var request = new JObject { ["clientId"] = localNetwork };
+            MultiplayerApi.RequestServer(RequestChannel, request, OnSyncResponse, true);
+        }
+        catch (Exception ex)
+        {
+            Log("request failed: " + ex.Message);
         }
     }
 

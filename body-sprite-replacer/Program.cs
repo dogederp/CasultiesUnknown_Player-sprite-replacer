@@ -134,11 +134,25 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private class InputListener : MonoBehaviour
     {
+        private static bool _mpTickError;
+
         private void Update()
         {
             SkinMenuUI.SetVisible(MenuGate.ShouldShowButton());
-            MpBody.Tick();
-            MpSkinSync.Tick();
+
+            try
+            {
+                MpBody.Tick();
+                MpSkinSync.Tick();
+            }
+            catch (Exception ex)
+            {
+                if (!_mpTickError)
+                {
+                    _mpTickError = true;
+                    SpriteReplacerPlugin.Log.LogWarning("Multiplayer tick failed: " + ex);
+                }
+            }
 
             if (SkinMenuUI.IsFolderBrowserOpen) return;
             if (IsInputFieldFocused()) return;
