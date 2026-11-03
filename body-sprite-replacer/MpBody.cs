@@ -239,6 +239,21 @@ internal static class MpBody
         return true;
     }
 
+    internal static bool ClearRemoteSkin(uint networkClientId, uint playerId)
+    {
+        if (!IsActive) return false;
+
+        Body body = GetBodyByPlayerId(playerId);
+        if (body == null) return false;
+        if (body == _localBody) return false;
+
+        BodySkinBinding binding = body.GetComponent<BodySkinBinding>();
+        if (binding != null) binding.Reset();
+
+        LogDebug("Cleared remote skin: network=" + networkClientId + " player=" + playerId);
+        return true;
+    }
+
     private static Type Resolve(string name)
     {
         try

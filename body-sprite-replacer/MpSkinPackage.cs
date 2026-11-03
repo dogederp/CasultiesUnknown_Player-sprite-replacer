@@ -9,12 +9,6 @@ using UnityEngine;
 // it into sprites and owns the textures until the session ends.
 internal sealed class MpSkinPackage
 {
-    internal const int MaxZipBytes = 4 * 1024 * 1024;
-    internal const int MaxEntries = 64;
-    internal const int MaxEntryBytes = 1024 * 1024;
-    internal const int MaxUncompressedBytes = 16 * 1024 * 1024;
-    internal const int MaxTextureSize = 2048;
-
     internal string SetName;
     internal string Hash;
     internal byte[] Zip;
@@ -34,7 +28,7 @@ internal sealed class MpSkinPackage
         }
 
         byte[] bytes = memory.ToArray();
-        if (bytes.Length == 0 || bytes.Length > MaxZipBytes) return null;
+        if (!MpSkinRules.ZipSizeOk(bytes.Length)) return null;
 
         return new MpSkinPackage
         {
@@ -46,7 +40,7 @@ internal sealed class MpSkinPackage
 
     internal static MpSkinPackage FromZip(byte[] zipBytes, string expectedHash, string setName)
     {
-        if (zipBytes == null || zipBytes.Length == 0 || zipBytes.Length > MaxZipBytes) return null;
+        if (!MpSkinRules.ZipSizeOk(zipBytes == null ? 0 : zipBytes.Length)) return null;
         if (!string.Equals(HashHex(zipBytes), expectedHash, StringComparison.OrdinalIgnoreCase)) return null;
 
         var package = new MpSkinPackage
@@ -62,10 +56,11 @@ internal sealed class MpSkinPackage
             using var zip = new ZipArchive(new MemoryStream(zipBytes), ZipArchiveMode.Read);
             int entries = 0;
             int total = 0;
+            long pixels = 0;
 
             foreach (ZipArchiveEntry entry in zip.Entries)
             {
-                if (++entries > MaxEntries) return Reject(package);
+                if (!MpSkinRules.EntryCountOk(++entries)) return Reject(package);
 
                 string path = entry.FullName.Replace('\\', '/');
                 if (path.Contains("..") || path.StartsWith("/")) return Reject(package);
@@ -79,27 +74,36 @@ internal sealed class MpSkinPackage
                 string name = Path.GetFileNameWithoutExtension(parts[1]);
                 HashSet<string> known = folder == "Body" ? SkinImporter.BodyNames : SkinImporter.HeadNames;
                 if (!known.Contains(name)) continue;
-                if (entry.Length <= 0 || entry.Length > MaxEntryBytes) return Reject(package);
+                if (package.Sprites.ContainsKey(name)) continue;
+                if (!MpSkinRules.EntrySizeOk(entry.Length)) return Reject(package);
 
                 total += (int)entry.Length;
-                if (total > MaxUncompressedBytes) return Reject(package);
+                if (!MpSkinRules.TotalSizeOk(total)) return Reject(package);
+                if (!MpSkinRules.CompressionRatioOk(total, zipBytes.Length)) return Reject(package);
 
-                using Stream stream = entry.Open();
-                using var data = new MemoryStream();
-                stream.CopyTo(data);
+                byte[] data;
+                using (Stream stream = entry.Open())
+                {
+                    if (!TryReadLimited(stream, MpSkinRules.MaxEntryBytes, out data))
+                        return Reject(package);
+                }
+
+                if (!MpSkinRules.TryReadPngSize(data, out int pngWidth, out int pngHeight) ||
+                    !MpSkinRules.TextureSizeOk(pngWidth, pngHeight))
+                {
+                    continue;
+                }
+
+                pixels += (long)pngWidth * pngHeight;
+                if (!MpSkinRules.TexturePixelsOk(pixels)) return Reject(package);
 
                 var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false)
                 {
                     filterMode = FilterMode.Point
                 };
 
-                if (!ImageConversion.LoadImage(texture, data.ToArray()))
-                {
-                    UnityEngine.Object.Destroy(texture);
-                    continue;
-                }
-
-                if (texture.width > MaxTextureSize || texture.height > MaxTextureSize)
+                if (!ImageConversion.LoadImage(texture, data) ||
+                    !MpSkinRules.TextureSizeOk(texture.width, texture.height))
                 {
                     UnityEngine.Object.Destroy(texture);
                     continue;
@@ -162,6 +166,26 @@ internal sealed class MpSkinPackage
             using FileStream source = File.OpenRead(file);
             source.CopyTo(target);
         }
+    }
+
+    private static bool TryReadLimited(Stream stream, int limit, out byte[] data)
+    {
+        using var memory = new MemoryStream();
+        byte[] buffer = new byte[8192];
+        int read;
+
+        while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            if (memory.Length + read > limit)
+            {
+                data = null;
+                return false;
+            }
+            memory.Write(buffer, 0, read);
+        }
+
+        data = memory.ToArray();
+        return true;
     }
 
     private static string Sanitize(string value)

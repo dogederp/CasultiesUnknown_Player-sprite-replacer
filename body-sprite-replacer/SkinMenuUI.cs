@@ -33,7 +33,12 @@ internal static class SkinMenuUI
     private static readonly List<Texture2D> _previewTextures = new List<Texture2D>();
     private static Button _lockButton;
     private static TextMeshProUGUI _lockStatus;
+    private static TextMeshProUGUI _rateLimitLabel;
+    private static Button _shareButton;
+    private static Button _downloadButton;
+    private static Button _cacheButton;
     private static bool _openOnShow;
+    private static bool _cooldownShown;
 
     internal static bool IsFolderBrowserOpen => _browserWindow != null;
 
@@ -112,17 +117,28 @@ internal static class SkinMenuUI
 
         if (_lockStatus != null)
         {
-            _lockStatus.gameObject.SetActive(active && !host);
-
-            if (SkinLock.CanChangeOnce)
+            if (MpSkinSync.IsCoolingDown)
             {
-                _lockStatus.text = "Locked. Choose one skin.";
-                _lockStatus.color = GameTheme.WarningColor;
+                _lockStatus.gameObject.SetActive(true);
+                _lockStatus.text = "Skin change paused: " + MpSkinSync.CooldownSeconds + "s";
+                _lockStatus.color = GameTheme.DangerColor;
+                _cooldownShown = true;
             }
             else
             {
-                _lockStatus.text = SkinLock.IsLocked ? "Skins locked by host" : "Skins unlocked";
-                _lockStatus.color = SkinLock.IsLocked ? GameTheme.WarningColor : GameTheme.MutedColor;
+                _cooldownShown = false;
+                _lockStatus.gameObject.SetActive(active && !host);
+
+                if (SkinLock.CanChangeOnce)
+                {
+                    _lockStatus.text = "Locked. Choose one skin.";
+                    _lockStatus.color = GameTheme.WarningColor;
+                }
+                else
+                {
+                    _lockStatus.text = SkinLock.IsLocked ? "Skins locked by host" : "Skins unlocked";
+                    _lockStatus.color = SkinLock.IsLocked ? GameTheme.WarningColor : GameTheme.MutedColor;
+                }
             }
         }
 
@@ -138,6 +154,89 @@ internal static class SkinMenuUI
             if (pair.Value != null)
                 pair.Value.interactable = canChange && SpriteReplacerPlugin.CharacterFolderExists(pair.Key);
         }
+
+        UpdateCooldownLabel();
+    }
+
+    private static void UpdateCooldownLabel()
+    {
+        if (_rateLimitLabel == null) return;
+
+        if (!MpSkinSync.IsCoolingDown)
+        {
+            if (_rateLimitLabel.gameObject.activeSelf)
+                _rateLimitLabel.gameObject.SetActive(false);
+            return;
+        }
+
+        if (!_rateLimitLabel.gameObject.activeSelf)
+            _rateLimitLabel.gameObject.SetActive(true);
+
+        string text = "Skin change paused: " + MpSkinSync.CooldownSeconds + "s";
+        if (_rateLimitLabel.text != text)
+            _rateLimitLabel.text = text;
+    }
+
+    private static void RefreshSettingsUi()
+    {
+        SetToggleLabel(_shareButton, "Share", SpriteReplacerPlugin.ShareSkins);
+        SetToggleLabel(_downloadButton, "Download", SpriteReplacerPlugin.DownloadSkins);
+    }
+
+    private static void SetToggleLabel(Button button, string name, bool value)
+    {
+        if (button == null) return;
+
+        TMP_Text label = button.GetComponentInChildren<TMP_Text>();
+        if (label == null) return;
+
+        label.text = name + ": " + (value ? "ON" : "OFF");
+        label.color = value ? GameTheme.SuccessColor : GameTheme.MutedColor;
+    }
+
+    private static void ToggleShare()
+    {
+        SpriteReplacerPlugin.SetShareSkins(!SpriteReplacerPlugin.ShareSkins);
+        MpSkinSync.OnShareChanged();
+        RefreshSettingsUi();
+    }
+
+    private static void ToggleDownload()
+    {
+        SpriteReplacerPlugin.SetDownloadSkins(!SpriteReplacerPlugin.DownloadSkins);
+        MpSkinSync.OnDownloadChanged();
+        RefreshSettingsUi();
+    }
+
+    private static void ClearCache()
+    {
+        int count = MpSkinSync.ClearCache();
+        SkinLock.AnnounceCacheCleared(count);
+    }
+
+    internal static void TickCooldown()
+    {
+        UpdateCooldownLabel();
+
+        if (!MpSkinSync.IsCoolingDown)
+        {
+            if (_cooldownShown)
+            {
+                _cooldownShown = false;
+                RefreshLockUi();
+            }
+            return;
+        }
+
+        if (_lockStatus == null) return;
+
+        string text = "Skin change paused: " + MpSkinSync.CooldownSeconds + "s";
+        if (_lockStatus.text != text)
+        {
+            _lockStatus.text = text;
+            _lockStatus.color = GameTheme.DangerColor;
+        }
+        _cooldownShown = true;
     }
 
     private static void CreateTopButton(Transform parent)
@@ -156,6 +255,12 @@ internal static class SkinMenuUI
         Button button = buttonObj.AddComponent<Button>();
         button.targetGraphic = image;
         button.onClick.AddListener(TogglePopup);
+
+        _rateLimitLabel = CreateText(parent, "RateLimit", "", 16, GameTheme.DangerColor,
+            TextAlignmentOptions.TopLeft);
+        SetRect(_rateLimitLabel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(0f, 1f), new Vector2(20f, -88f), new Vector2(260f, 24f));
+        _rateLimitLabel.gameObject.SetActive(false);
     }
 
     private static void TogglePopup()
@@ -241,14 +346,33 @@ internal static class SkinMenuUI
             new Vector2(1f, 0.5f), new Vector2(-70f, 0f), new Vector2(300f, 32f));
 
         TextMeshProUGUI hint = CreateText(window.transform, "Hint",
-            "Numpad 1-9 also changes the active slot. Switch imports a skin folder into a slot.",
-            16, GameTheme.MutedColor, TextAlignmentOptions.MidlineLeft);
+            "Numpad 1-9 also changes the slot.",
+            14, GameTheme.MutedColor, TextAlignmentOptions.MidlineLeft);
         SetRect(hint.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(24f, -66f), new Vector2(700f, 24f));
+            new Vector2(24f, -64f), new Vector2(330f, 28f));
+
+        _shareButton = CreateButton(window.transform, "Share", "Share: ON",
+            GameTheme.SuccessColor, 14);
+        SetRect(_shareButton.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(0f, 1f), new Vector2(360f, -64f), new Vector2(120f, 28f));
+        _shareButton.onClick.AddListener(ToggleShare);
+
+        _downloadButton = CreateButton(window.transform, "Download", "Download: ON",
+            GameTheme.SuccessColor, 14);
+        SetRect(_downloadButton.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(0f, 1f), new Vector2(488f, -64f), new Vector2(150f, 28f));
+        _downloadButton.onClick.AddListener(ToggleDownload);
+
+        _cacheButton = CreateButton(window.transform, "Cache", "Clear cache",
+            GameTheme.MutedColor, 14);
+        SetRect(_cacheButton.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(0f, 1f), new Vector2(646f, -64f), new Vector2(110f, 28f));
+        _cacheButton.onClick.AddListener(ClearCache);
 
         _popupWindow = window;
         BuildGrid();
         RefreshLockUi();
+        RefreshSettingsUi();
     }
 
     private static void BuildGrid()

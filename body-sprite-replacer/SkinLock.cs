@@ -9,20 +9,20 @@ internal static class SkinLock
 {
     internal const string LockChannel = "spritereplacer.skin.lock";
 
-    internal static bool IsLocked { get; private set; }
-    internal static bool HasLocalSkin { get; set; }
-    internal static bool CanChangeOnce { get; private set; }
+    private static readonly SkinLockState State = new SkinLockState();
 
-    internal static bool CanChangeLocal
+    internal static bool IsLocked => State.IsLocked;
+
+    internal static bool HasLocalSkin
     {
-        get
-        {
-            if (!MpBody.IsActive) return true;
-            if (!IsLocked) return true;
-            if (CanChangeOnce) return true;
-            return !HasLocalSkin;
-        }
+        get => State.HasLocalSkin;
+        set => State.HasLocalSkin = value;
     }
+
+    internal static bool CanChangeOnce => State.CanChangeOnce;
+
+    internal static bool CanChangeLocal =>
+        State.CanChangeLocal(MpBody.IsActive, MpSkinSync.IsCoolingDown);
 
     internal static void Toggle()
     {
@@ -34,9 +34,7 @@ internal static class SkinLock
     {
         if (!MpBody.IsHost) return;
 
-        bool changed = IsLocked != locked;
-        IsLocked = locked;
-        CanChangeOnce = false;
+        bool changed = State.SetLocked(locked);
         Log("host set locked=" + locked + ".");
 
         if (changed)
@@ -65,18 +63,12 @@ internal static class SkinLock
         JToken lockedToken = payload["locked"];
         if (lockedToken == null) return;
 
-        bool wasLocked = IsLocked;
-        IsLocked = lockedToken.Value<bool>();
-
         bool allow = payload["allowOneChange"] != null &&
                      payload["allowOneChange"].Value<bool>();
 
-        if (!IsLocked)
-            CanChangeOnce = false;
-        else if (allow)
-            CanChangeOnce = true;
+        bool changed = State.ApplyRemote(lockedToken.Value<bool>(), allow);
 
-        if (wasLocked != IsLocked)
+        if (changed)
             Announce(IsLocked);
 
         if (CanChangeOnce)
@@ -87,27 +79,34 @@ internal static class SkinLock
 
     internal static void ConsumeChoice()
     {
-        if (!CanChangeOnce) return;
-        CanChangeOnce = false;
+        if (!State.ConsumeChoice()) return;
         SkinMenuUI.RefreshLockUi();
     }
 
-    internal static JObject Payload(bool allowOneChange)
+    internal static JObject Payload(bool allowOneChange, float retryIn = 0f,
+        int strikes = 0, bool accepted = false)
     {
-        return new JObject
+        var payload = new JObject
         {
             ["locked"] = IsLocked,
             ["allowOneChange"] = allowOneChange
         };
+
+        if (retryIn > 0f)
+        {
+            payload["retryIn"] = retryIn;
+            payload["strikes"] = strikes;
+            payload["accepted"] = accepted;
+        }
+
+        return payload;
     }
 
     internal static void Reset()
     {
-        if (!IsLocked && !HasLocalSkin && !CanChangeOnce) return;
+        if (!State.IsLocked && !State.HasLocalSkin && !State.CanChangeOnce) return;
 
-        IsLocked = false;
-        HasLocalSkin = false;
-        CanChangeOnce = false;
+        State.Reset();
         SkinMenuUI.RefreshLockUi();
     }
 
@@ -116,6 +115,25 @@ internal static class SkinLock
         ChatMessage(locked
             ? "[Skin Replacer] The host locked all skins."
             : "[Skin Replacer] The host released the skin lock.");
+    }
+
+    internal static void AnnounceRateLimit(int seconds, int strikes, bool lastSkinShared)
+    {
+        string duration = MpCooldown.FormatDuration(seconds);
+        string prefix = lastSkinShared
+            ? "The last skin is shared. "
+            : (strikes >= 2 ? "Repeated requests. " : "");
+        ChatMessage("[Skin Replacer] " + prefix
+            + "Skin changes paused for " + duration + ".");
+    }
+
+    internal static void AnnounceCacheCleared(int count)
+    {
+        if (!MpBody.IsActive) return;
+
+        ChatMessage(count == 0
+            ? "[Skin Replacer] The skin cache is empty."
+            : "[Skin Replacer] Cleared " + count + " cached skins.");
     }
 
     private static void ChatMessage(string message)

@@ -29,9 +29,18 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static ConfigEntry<string> _activeSlotSetting;
     private static ConfigEntry<int> _backupCountSetting;
+    private static ConfigEntry<bool> _shareSetting;
+    private static ConfigEntry<bool> _downloadSetting;
+    private static ConfigEntry<int> _cacheMbSetting;
 
     internal static int BackupCount =>
         _backupCountSetting == null ? DefaultBackupCount : Math.Max(0, _backupCountSetting.Value);
+
+    internal static bool ShareSkins => _shareSetting == null || _shareSetting.Value;
+    internal static bool DownloadSkins => _downloadSetting == null || _downloadSetting.Value;
+
+    internal static int MaxSkinCacheMB =>
+        _cacheMbSetting == null ? 64 : Math.Max(4, _cacheMbSetting.Value);
 
     private static readonly Dictionary<KeyCode, string> KeyMapping = new Dictionary<KeyCode, string>
     {
@@ -57,6 +66,17 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             new ConfigDescription(
                 "Number of backup folders to keep for each slot. Older backups are deleted. 0 keeps all backups.",
                 new AcceptableValueRange<int>(0, MaxBackupCount)));
+
+        _shareSetting = Config.Bind("Multiplayer", "ShareSkins", true,
+            "Share your selected skin with the other players.");
+
+        _downloadSetting = Config.Bind("Multiplayer", "DownloadSkins", true,
+            "Download and apply the skins that other players share.");
+
+        _cacheMbSetting = Config.Bind("Multiplayer", "MaxSkinCacheMB", 64,
+            new ConfigDescription(
+                "Maximum disk space for the remote skin cache.",
+                new AcceptableValueRange<int>(4, 512)));
 
         bool rootCreated = !Directory.Exists(SpritesPath);
         Directory.CreateDirectory(SpritesPath);
@@ -139,6 +159,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         private void Update()
         {
             SkinMenuUI.SetVisible(MenuGate.ShouldShowButton());
+            SkinMenuUI.TickCooldown();
 
             try
             {
@@ -190,6 +211,14 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         }
         slot = normalized;
 
+        if (MpSkinSync.IsCoolingDown)
+        {
+            SkinMenuUI.ShowStatus("Skin changes paused. Try again in "
+                + MpSkinSync.CooldownSeconds + "s.", GameTheme.WarningColor);
+            Log.LogInfo("Skin change blocked: rate limited.");
+            return false;
+        }
+
         if (!SkinLock.CanChangeLocal)
         {
             SkinMenuUI.ShowStatus("Skins locked by host.", GameTheme.WarningColor);
@@ -240,6 +269,32 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         _backupCountSetting.Value = value;
         if (_backupCountSetting.ConfigFile != null)
             _backupCountSetting.ConfigFile.Save();
+    }
+
+    internal static void SetShareSkins(bool value)
+    {
+        if (_shareSetting == null || _shareSetting.Value == value) return;
+        _shareSetting.Value = value;
+        if (_shareSetting.ConfigFile != null)
+            _shareSetting.ConfigFile.Save();
+    }
+
+    internal static void SetDownloadSkins(bool value)
+    {
+        if (_downloadSetting == null || _downloadSetting.Value == value) return;
+        _downloadSetting.Value = value;
+        if (_downloadSetting.ConfigFile != null)
+            _downloadSetting.ConfigFile.Save();
+    }
+
+    internal static void SetMaxSkinCacheMB(int value)
+    {
+        if (_cacheMbSetting == null) return;
+        value = Math.Max(4, Math.Min(512, value));
+        if (_cacheMbSetting.Value == value) return;
+        _cacheMbSetting.Value = value;
+        if (_cacheMbSetting.ConfigFile != null)
+            _cacheMbSetting.ConfigFile.Save();
     }
 
     internal static bool CharacterFolderExists(string character)

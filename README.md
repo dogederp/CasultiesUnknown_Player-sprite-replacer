@@ -53,8 +53,14 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 - Multiplayer uses **Casualties Together 5.2.0** and **CUCoreLib 1.0.6.1** or newer.
 - Each player keeps their own active slot. The mod shares the chosen skin with the other clients.
 - A client that joins after the game loads receives the skins already in the session.
+- The mod verifies the SHA-256 hash of each skin package. It checks the PNG size and the total pixel budget before it decodes the image, and it limits the zip size, entry count, total size, and compression ratio.
+- The host limits each client to 8 skin uploads in 10 seconds.
+- A client that hits the limit gets a chat line and a live countdown in the skin menu. The upload that hits the limit is still shared, so the last skin in the burst is visible to all clients. Repeated attempts increase the pause: 10 seconds, 1 minute, 5 minutes, then 15 minutes.
+- The skin menu has **Share: ON/OFF**, **Download: ON/OFF**, and **Clear cache** controls. These settings are local to each player.
+- **Share** off removes your skin from the session. **Download** off restores remote bodies and stops new remote skins.
+- Remote skins are cached in `BepInEx/plugins/CustomSprites/mp_cache`. A cached skin is not sent again. The cache keeps 64 MB or 32 skins by default. Set `MaxSkinCacheMB` in the BepInEx config to change the size.
 - The host can lock skins from the skin menu. A locked client cannot change. A client that joins while locked gets one change.
-- The active slot is local to each player. The CUCoreLib tab only has the backup count.
+- The active slot, share, and download settings are local to each player. The CUCoreLib tab only has the backup count.
 - The WoundView stays local.
 - Disable ChangeSkinMP and other skin mods before you use this mod in multiplayer.
 

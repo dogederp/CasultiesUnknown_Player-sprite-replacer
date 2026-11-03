@@ -72,7 +72,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="CUCoreLib" Condition="!Exists('$(GameDir)\BepInEx\plugins\CUCoreLib.dll')">
-      <HintPath>$(GameDir)\BepInEx\plugins\CUCoreLib.dll.disabled</HintPath>
+      <HintPath>$(GameDir)\BepInEx\plugins\CUCoreLib.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json">
