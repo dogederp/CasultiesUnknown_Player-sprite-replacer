@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System;
 
-[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.4.0")]
+[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "2.0.0")]
 [BepInDependency("net.cucorelib", BepInDependency.DependencyFlags.SoftDependency)]
 public class SpriteReplacerPlugin : BaseUnityPlugin
 {
@@ -115,7 +115,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         SaveActiveSlot(_activeSlot);
 
         var harmony = new Harmony("com.yourname.spritereplacer");
-        harmony.PatchAll();
+        PatchLoader.Apply(harmony);
 
         SceneManager.sceneLoaded += OnSceneLoaded;
         SceneManager.sceneUnloaded += OnSceneUnloaded;
@@ -132,6 +132,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     private void Start()
     {
         CoreLibIntegration.TryRegister();
+        BuildInfo.Log(Log);
     }
 
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)

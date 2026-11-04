@@ -5,7 +5,11 @@
     <RootNamespace>body_sprite_replacer</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <NoWarn>MSB3277</NoWarn>
-    <GameDir>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Casualties Unknown Demo</GameDir>
+    <BaseGamePath Condition="'$(BaseGamePath)' == ''">..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Casualties Unknown Demo</BaseGamePath>
+    <GameDir Condition="'$(GameDir)' == ''">$(BaseGamePath)</GameDir>
+    <GameManagedDir Condition="'$(GameManagedDir)' == ''">$(GameDir)\CasualtiesUnknown_Data\Managed</GameManagedDir>
+    <AssemblyCSharpPath Condition="'$(AssemblyCSharpPath)' == ''">$(GameManagedDir)\Assembly-CSharp.dll</AssemblyCSharpPath>
+    <CUCoreLibDllPath Condition="'$(CUCoreLibDllPath)' == ''">$(GameDir)\BepInEx\plugins\CUCoreLib.dll</CUCoreLibDllPath>
     <LangVersion>10</LangVersion>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <GenerateDependencyFile>false</GenerateDependencyFile>
@@ -24,7 +28,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(AssemblyCSharpPath)</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="BepInEx">
@@ -32,55 +36,51 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\UnityEngine.dll</HintPath>
+      <HintPath>$(GameManagedDir)\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(GameManagedDir)\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      <HintPath>$(GameManagedDir)\UnityEngine.ImageConversionModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath>$(GameManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <HintPath>$(GameManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <HintPath>$(GameManagedDir)\UnityEngine.UI.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.UIModule">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+      <HintPath>$(GameManagedDir)\UnityEngine.UIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>$(GameManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.TextMeshPro">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+      <HintPath>$(GameManagedDir)\Unity.TextMeshPro.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="CUCoreLib" Condition="Exists('$(GameDir)\BepInEx\plugins\CUCoreLib.dll')">
-      <HintPath>$(GameDir)\BepInEx\plugins\CUCoreLib.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="CUCoreLib" Condition="!Exists('$(GameDir)\BepInEx\plugins\CUCoreLib.dll')">
-      <HintPath>$(GameDir)\BepInEx\plugins\CUCoreLib.dll</HintPath>
+    <Reference Include="CUCoreLib">
+      <HintPath>$(CUCoreLibDllPath)</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(GameManagedDir)\Newtonsoft.Json.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System.IO.Compression">
-      <HintPath>$(GameDir)\CasualtiesUnknown_Data\Managed\System.IO.Compression.dll</HintPath>
+      <HintPath>$(GameManagedDir)\System.IO.Compression.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
