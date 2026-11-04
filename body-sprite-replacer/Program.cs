@@ -466,6 +466,20 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         face.eyesGone = ReplaceSprite(face.eyesGone);
         face.eyesGoneHealed = ReplaceSprite(face.eyesGoneHealed);
 
+        if (face.nosebleedSprite != null)
+        {
+            SkinSpriteReplacer replacer = face.nosebleedSprite.GetComponent<SkinSpriteReplacer>();
+            if (replacer == null)
+            {
+                replacer = SkinSpriteReplacer.Attach(face.nosebleedSprite, LoadedSprites);
+                replacer.Apply();
+            }
+            else
+            {
+                replacer.SetSprites(LoadedSprites);
+            }
+        }
+
         for (int i = 0; i < face.disfiguredHead.Length; i++)
             face.disfiguredHead[i] = ReplaceSprite(face.disfiguredHead[i]);
 

@@ -94,6 +94,8 @@ The mod does not create a pause and does not change the time scale.
 
 A different image size is allowed. The mod shows a warning, and the sprite can look larger or smaller in the game.
 
+The nosebleed sprite is optional. Put `experimentNosebleed.png` in the slot's `Head` folder to change it. If the file is absent, the game default stays.
+
 You can also use **Switch** to import a prepared skin folder. The folder must contain a `Body`, `Head`, or `WoundView` subfolder. The PNG file names must match the game sprites exactly. The importer warns about missing names.
 
 The `WoundView` folder holds the art for the health screen: the body image, the limb outlines, and the limb wound layers. Copy the file names from an existing `WoundView` folder.

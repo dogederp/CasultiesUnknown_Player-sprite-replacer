@@ -15,19 +15,30 @@ public sealed class SkinSpriteReplacer : MonoBehaviour
     public static SkinSpriteReplacer Attach(SpriteRenderer renderer,
         IReadOnlyDictionary<string, Sprite> sprites)
     {
-        SkinSpriteReplacer replacer = renderer.GetComponent<SkinSpriteReplacer>()
-            ?? renderer.gameObject.AddComponent<SkinSpriteReplacer>();
+        SkinSpriteReplacer replacer = renderer.GetComponent<SkinSpriteReplacer>();
+        if (replacer == null)
+        {
+            replacer = renderer.gameObject.AddComponent<SkinSpriteReplacer>();
+            replacer.Original = renderer.sprite;
+        }
 
         replacer.Renderer = renderer;
-        replacer.Original = renderer.sprite;
         replacer.Sprites = sprites;
         return replacer;
+    }
+
+    public void SetSprites(IReadOnlyDictionary<string, Sprite> sprites)
+    {
+        Sprites = sprites;
+        Apply();
     }
 
     public void Apply()
     {
         Active = true;
-        if (Renderer == null || Renderer.sprite == null || Sprites == null) return;
+        if (Renderer == null) return;
+        if (Original != null) Renderer.sprite = Original;
+        if (Renderer.sprite == null || Sprites == null) return;
         if (Sprites.TryGetValue(Renderer.sprite.name, out Sprite replacement))
             Renderer.sprite = replacement;
     }
