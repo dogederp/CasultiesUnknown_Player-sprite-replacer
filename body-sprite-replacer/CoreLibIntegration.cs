@@ -1,11 +1,20 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using CUCoreLib.Data;
 using CUCoreLib.Registries;
+using HarmonyLib;
 
 internal static class CoreLibIntegration
 {
+    private const string SlotOptionId = "spritereplacer.activeSlot";
+
+    private static ModOptionDefinition _slotOption;
+    private static bool _slotOptionHidden;
+    private static bool _slotSyncPatchApplied;
+
     internal static void TryRegister()
     {
         if (!IsAvailable())
@@ -37,8 +46,21 @@ internal static class CoreLibIntegration
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void RegisterCoreLib()
     {
-        // The active slot is per-player. Do not register it as a CUCoreLib
-        // option, because CUCoreLib syncs every mod option from the host.
+        ModDropdownChoice[] choices = Enumerable.Range(1, SpriteReplacerPlugin.SlotCount)
+            .Select(i => new ModDropdownChoice(SlotFolders.SlotId(i), "Slot " + i))
+            .ToArray();
+
+        int defaultIndex = Math.Max(0, SlotFolders.Index(SpriteReplacerPlugin.ActiveSlot));
+        ModOptionDefinition slotOption = ModOptionDefinition.Dropdown(
+            SlotOptionId,
+            "Active slot",
+            "Select the CustomSprites slot to use. This choice stays local.",
+            "Skin Replacer",
+            defaultIndex,
+            choices,
+            OnDropdownChanged);
+        bool slotOk = ModOptionsRegistry.Register(slotOption);
+
         bool backupOk = ModOptionsRegistry.Register(ModOptionDefinition.Int(
             "spritereplacer.backupCount",
             "Backups kept per slot",
@@ -49,14 +71,90 @@ internal static class CoreLibIntegration
             SpriteReplacerPlugin.MaxBackupCount,
             OnBackupCountChanged));
 
+        if (!slotOk)
+            SpriteReplacerPlugin.Log.LogWarning("CUCoreLib rejected the active slot option.");
         if (!backupOk)
             SpriteReplacerPlugin.Log.LogWarning("CUCoreLib rejected the backup count option.");
 
-        if (backupOk)
+        if (slotOk)
+        {
+            // The option stays registered, so the dropdown stays in the settings
+            // tab. A Harmony patch skips it while a host snapshot is applied.
+            _slotOption = slotOption;
+            BlockSlotHostSync();
+            StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);
+        }
+
+        if (slotOk || backupOk)
         {
             SpriteReplacerPlugin.Log.LogInfo("CUCoreLib settings tab registered.");
-            StoreBackupCount(SpriteReplacerPlugin.BackupCount);
+            if (backupOk) StoreBackupCount(SpriteReplacerPlugin.BackupCount);
         }
+    }
+
+    private static void BlockSlotHostSync()
+    {
+        if (_slotSyncPatchApplied) return;
+
+        try
+        {
+            MethodInfo method = typeof(ModOptionsRegistry).GetMethod(
+                "ApplyNetworkSnapshot",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            if (method == null)
+            {
+                SpriteReplacerPlugin.Log.LogWarning(
+                    "Could not find ApplyNetworkSnapshot. The active slot may sync from the host.");
+                return;
+            }
+
+            var harmony = new Harmony("com.yourname.spritereplacer.cucorelib");
+            harmony.Patch(method,
+                prefix: new HarmonyMethod(typeof(CoreLibIntegration).GetMethod(
+                    nameof(HideSlotOption), BindingFlags.Static | BindingFlags.NonPublic)),
+                finalizer: new HarmonyMethod(typeof(CoreLibIntegration).GetMethod(
+                    nameof(RestoreSlotOption), BindingFlags.Static | BindingFlags.NonPublic)));
+            _slotSyncPatchApplied = true;
+            SpriteReplacerPlugin.Log.LogInfo("Host sync no longer changes the local active slot.");
+        }
+        catch (Exception ex)
+        {
+            SpriteReplacerPlugin.Log.LogWarning(
+                "Could not block the active slot from host sync: " + ex.Message);
+        }
+    }
+
+    private static void HideSlotOption()
+    {
+        if (_slotOptionHidden) return;
+
+        List<ModOptionDefinition> options = GetRegisteredOptions();
+        if (options == null) return;
+
+        _slotOptionHidden = options.RemoveAll(
+            option => option != null && option.Id == SlotOptionId) > 0;
+    }
+
+    private static Exception RestoreSlotOption(Exception __exception)
+    {
+        if (!_slotOptionHidden) return __exception;
+
+        _slotOptionHidden = false;
+        List<ModOptionDefinition> options = GetRegisteredOptions();
+        if (options != null && _slotOption != null &&
+            !options.Any(option => option != null && option.Id == SlotOptionId))
+        {
+            options.Add(_slotOption);
+        }
+
+        return __exception;
+    }
+
+    private static List<ModOptionDefinition> GetRegisteredOptions()
+    {
+        FieldInfo field = typeof(ModOptionsRegistry).GetField(
+            "RegisteredOptions", BindingFlags.Static | BindingFlags.NonPublic);
+        return field == null ? null : field.GetValue(null) as List<ModOptionDefinition>;
     }
 
     internal static void StoreActiveSlot(string slot)
@@ -118,5 +216,14 @@ internal static class CoreLibIntegration
     {
         SpriteReplacerPlugin.SetBackupCount(value);
         SkinImporter.PruneAllBackups();
+    }
+
+    private static void OnDropdownChanged(int index)
+    {
+        string slot = SlotFolders.SlotId(index + 1);
+        if (SpriteReplacerPlugin.SwitchToSlot(slot)) return;
+
+        // The switch was blocked by a lock or a cooldown. Show the slot in use.
+        StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);
     }
 }

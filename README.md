@@ -41,12 +41,12 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 - The menu uses the game font, text colors, and button style. The mod reads them from the game settings menu at startup.
 - The skin selector shows all nine slots: `slot1` through `slot9`.
 - **Select** uses an existing slot. **Switch** imports a whole skin folder into that slot.
-- **Numpad 1 through 9** changes the active slot while you play.
+- **Numpad 1 through 9**, the **skin cards**, or the **Active slot** dropdown in the settings tab changes the active slot while you play.
 - The mod remembers the last slot you selected and loads it at the next launch.
 - The mod looks for sprites in `CustomSprites/slot1` up to `CustomSprites/slot9`. Old `st1` to `st9` folders are renamed on the first launch.
 - A slot can also contain a `WoundView` subfolder. The mod replaces the wound screen art with these sprites.
 - The button is hidden in the wound view, crafting panel, trade menu, and settings menu.
-- With CUCoreLib installed, the game's settings menu has a **Skin Replacer** tab with the **Backups kept per slot** option. Use the skin menu cards or Numpad 1-9 to select the active slot.
+- With CUCoreLib installed, the game's settings menu has a **Skin Replacer** tab with the **Backups kept per slot** and **Active slot** options. The **Active slot** dropdown is local to each player. It is a backup selector. The skin cards and Numpad 1 through 9 are the primary selectors.
 
 ### Multiplayer
 
@@ -54,13 +54,15 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 - Each player keeps their own active slot. The mod shares the chosen skin with the other clients.
 - A client that joins after the game loads receives the skins already in the session.
 - The mod verifies the SHA-256 hash of each skin package. It checks the PNG size and the total pixel budget before it decodes the image, and it limits the zip size, entry count, total size, and compression ratio.
+- The host checks the real sender of each skin upload. A client cannot claim another player's client ID.
 - The host limits each client to 8 skin uploads in 10 seconds.
 - A client that hits the limit gets a chat line and a live countdown in the skin menu. The upload that hits the limit is still shared, so the last skin in the burst is visible to all clients. Repeated attempts increase the pause: 10 seconds, 1 minute, 5 minutes, then 15 minutes.
 - The skin menu has **Share: ON/OFF**, **Download: ON/OFF**, and **Clear cache** controls. These settings are local to each player.
 - **Share** off removes your skin from the session. **Download** off restores remote bodies and stops new remote skins.
 - Remote skins are cached in `BepInEx/plugins/CustomSprites/mp_cache`. A cached skin is not sent again. The cache keeps 64 MB or 32 skins by default. Set `MaxSkinCacheMB` in the BepInEx config to change the size.
-- The host can lock skins from the skin menu. A locked client cannot change. A client that joins while locked gets one change.
-- The active slot, share, and download settings are local to each player. The CUCoreLib tab only has the backup count.
+- The host can lock skins from the skin menu. A locked client cannot change. A client that joins while locked gets one change. Turning Share off and on does not grant a new change.
+- If the host leaves, the session ends. Host migration is not available in Casualties Together 5.2.0.
+- The active slot, share, and download settings are local to each player. The CUCoreLib tab has the backup count and the local Active slot dropdown.
 - The WoundView stays local.
 - Disable ChangeSkinMP and other skin mods before you use this mod in multiplayer.
 

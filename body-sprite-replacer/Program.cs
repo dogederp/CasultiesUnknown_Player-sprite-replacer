@@ -215,6 +215,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         {
             SkinMenuUI.ShowStatus("Skin changes paused. Try again in "
                 + MpSkinSync.CooldownSeconds + "s.", GameTheme.WarningColor);
+            CoreLibIntegration.StoreActiveSlot(_activeSlot);
             Log.LogInfo("Skin change blocked: rate limited.");
             return false;
         }
@@ -526,8 +527,8 @@ public class TailScriptStartPatch
 [HarmonyPatch(typeof(Settings), "ApplyAll")]
 public class SettingsApplyAllPatch
 {
-    // The game re-applies saved settings at startup. Put the saved slot back
-    // into the dropdown first, so a stale dropdown value cannot win.
+    // The game re-applies saved settings at startup. Put the saved slot and
+    // backup count back first, so a stale value cannot win.
     static void Prefix()
     {
         CoreLibIntegration.StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);

@@ -3,6 +3,7 @@ internal sealed class SkinLockState
 {
     internal bool IsLocked { get; private set; }
     internal bool HasLocalSkin { get; set; }
+    internal bool HadLocalSkin { get; set; }
     internal bool CanChangeOnce { get; private set; }
 
     internal bool CanChangeLocal(bool multiplayerActive, bool rateLimited = false)
@@ -11,7 +12,7 @@ internal sealed class SkinLockState
         if (rateLimited) return false;
         if (!IsLocked) return true;
         if (CanChangeOnce) return true;
-        return !HasLocalSkin;
+        return !HasLocalSkin && !HadLocalSkin;
     }
 
     internal bool SetLocked(bool locked)
@@ -46,6 +47,7 @@ internal sealed class SkinLockState
     {
         IsLocked = false;
         HasLocalSkin = false;
+        HadLocalSkin = false;
         CanChangeOnce = false;
     }
 }

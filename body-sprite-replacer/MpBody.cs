@@ -216,6 +216,54 @@ internal static class MpBody
         }
     }
 
+    // The server gets the sender player ID from CUCoreLib. The payload also
+    // carries the network ID. Read the network ID back from the sender's body
+    // and compare. If the body is not ready, accept the claim.
+    internal static bool PlayerMatchesNetwork(uint networkId, uint playerId)
+    {
+        if (networkId == 0 || playerId == 0) return false;
+
+        Body body = GetBodyByPlayerId(playerId);
+        if (body == null)
+        {
+            LogDebug("Cannot verify network " + networkId + " for player " + playerId + " yet.");
+            return true;
+        }
+
+        uint actual = GetNetworkIdForBody(body);
+        if (actual == 0)
+        {
+            LogDebug("Cannot read the network ID for player " + playerId + ".");
+            return true;
+        }
+
+        return actual == networkId;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static uint GetNetworkIdForBody(Body body)
+    {
+        if (!IsActive || body == null) return 0;
+
+        try
+        {
+            Type scavType = ResolvePlayerType();
+            if (scavType == null) return 0;
+
+            MethodInfo method = MultiplayerApi.FindKrokMpMethod(scavType, "GetClientIdFromBody",
+                new[] { typeof(Body) });
+            if (method == null) return 0;
+
+            object value = method.Invoke(null, new object[] { body });
+            return KnetToUInt(value);
+        }
+        catch (Exception ex)
+        {
+            LogDebug("Network ID lookup failed for body: " + ex.Message);
+            return 0;
+        }
+    }
+
     internal static bool ApplyRemoteSkin(uint networkClientId, uint playerId,
         IReadOnlyDictionary<string, Sprite> sprites)
     {

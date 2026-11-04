@@ -19,6 +19,12 @@ internal static class SkinLock
         set => State.HasLocalSkin = value;
     }
 
+    internal static bool HadLocalSkin
+    {
+        get => State.HadLocalSkin;
+        set => State.HadLocalSkin = value;
+    }
+
     internal static bool CanChangeOnce => State.CanChangeOnce;
 
     internal static bool CanChangeLocal =>

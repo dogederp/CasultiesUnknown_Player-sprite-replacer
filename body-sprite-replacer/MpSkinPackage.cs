@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
 using UnityEngine;
 
 // One skin zip. The sender builds it from a slot folder. The receiver parses
@@ -11,6 +12,7 @@ internal sealed class MpSkinPackage
 {
     internal string SetName;
     internal string Hash;
+    internal string ContentHash;
     internal byte[] Zip;
     internal Dictionary<string, Sprite> Sprites;
     internal readonly List<Texture2D> Textures = new List<Texture2D>();
@@ -21,19 +23,23 @@ internal sealed class MpSkinPackage
         if (!Directory.Exists(root)) return null;
 
         using var memory = new MemoryStream();
+        using var content = SHA256.Create();
         using (var zip = new ZipArchive(memory, ZipArchiveMode.Create, true))
         {
-            AddFolder(zip, Path.Combine(root, "Body"), "Body", SkinImporter.BodyNames);
-            AddFolder(zip, Path.Combine(root, "Head"), "Head", SkinImporter.HeadNames);
+            AddFolder(zip, Path.Combine(root, "Body"), "Body", SkinImporter.BodyNames, content);
+            AddFolder(zip, Path.Combine(root, "Head"), "Head", SkinImporter.HeadNames, content);
         }
 
         byte[] bytes = memory.ToArray();
         if (!MpSkinRules.ZipSizeOk(bytes.Length)) return null;
 
+        content.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+
         return new MpSkinPackage
         {
             SetName = SlotFolders.DisplayName(slot),
             Hash = HashHex(bytes),
+            ContentHash = Hex(content.Hash),
             Zip = bytes
         };
     }
@@ -51,6 +57,7 @@ internal sealed class MpSkinPackage
             Sprites = new Dictionary<string, Sprite>()
         };
 
+        using var content = SHA256.Create();
         try
         {
             using var zip = new ZipArchive(new MemoryStream(zipBytes), ZipArchiveMode.Read);
@@ -88,6 +95,8 @@ internal sealed class MpSkinPackage
                         return Reject(package);
                 }
 
+                HashPart(content, path, data);
+
                 if (!MpSkinRules.TryReadPngSize(data, out int pngWidth, out int pngHeight) ||
                     !MpSkinRules.TextureSizeOk(pngWidth, pngHeight))
                 {
@@ -124,6 +133,8 @@ internal sealed class MpSkinPackage
             return Reject(package);
         }
 
+        content.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+        package.ContentHash = Hex(content.Hash);
         return package.Sprites.Count == 0 ? Reject(package) : package;
     }
 
@@ -152,20 +163,35 @@ internal sealed class MpSkinPackage
     }
 
     private static void AddFolder(ZipArchive zip, string folder, string entryFolder,
-        HashSet<string> names)
+        HashSet<string> names, SHA256 content)
     {
         if (!Directory.Exists(folder)) return;
 
-        foreach (string file in Directory.GetFiles(folder, "*.png"))
+        string[] files = Directory.GetFiles(folder, "*.png");
+        Array.Sort(files, StringComparer.Ordinal);
+
+        foreach (string file in files)
         {
             string name = Path.GetFileNameWithoutExtension(file);
             if (!names.Contains(name)) continue;
 
-            ZipArchiveEntry entry = zip.CreateEntry(entryFolder + "/" + Path.GetFileName(file));
+            byte[] data = File.ReadAllBytes(file);
+            string entryName = entryFolder + "/" + Path.GetFileName(file);
+            HashPart(content, entryName, data);
+
+            ZipArchiveEntry entry = zip.CreateEntry(entryName);
             using Stream target = entry.Open();
-            using FileStream source = File.OpenRead(file);
-            source.CopyTo(target);
+            target.Write(data, 0, data.Length);
         }
+    }
+
+    private static void HashPart(SHA256 sha, string name, byte[] data)
+    {
+        byte[] nameBytes = Encoding.UTF8.GetBytes(name);
+        byte[] lengthBytes = BitConverter.GetBytes(data.Length);
+        sha.TransformBlock(nameBytes, 0, nameBytes.Length, null, 0);
+        sha.TransformBlock(lengthBytes, 0, lengthBytes.Length, null, 0);
+        sha.TransformBlock(data, 0, data.Length, null, 0);
     }
 
     private static bool TryReadLimited(Stream stream, int limit, out byte[] data)
@@ -198,8 +224,12 @@ internal sealed class MpSkinPackage
     private static string HashHex(byte[] data)
     {
         using SHA256 sha = SHA256.Create();
-        byte[] hash = sha.ComputeHash(data);
-        var text = new System.Text.StringBuilder(hash.Length * 2);
+        return Hex(sha.ComputeHash(data));
+    }
+
+    private static string Hex(byte[] hash)
+    {
+        var text = new StringBuilder(hash.Length * 2);
         foreach (byte value in hash) text.Append(value.ToString("x2"));
         return text.ToString();
     }

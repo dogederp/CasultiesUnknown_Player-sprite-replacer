@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using CUCoreLib.Networking;
 using Newtonsoft.Json.Linq;
@@ -23,17 +25,22 @@ internal static class MpSkinSync
         new Dictionary<uint, MpSkinPackage>();
     private static readonly Dictionary<uint, uint> PlayerIds =
         new Dictionary<uint, uint>();
+    private static readonly Dictionary<uint, string> LastContent =
+        new Dictionary<uint, string>();
     private static readonly HashSet<uint> Waiting = new HashSet<uint>();
     private static readonly MpUploadPolicy UploadPolicy = new MpUploadPolicy();
     private static readonly MpRateLimiter UploadLimiter = new MpRateLimiter(8, 10f);
     private static readonly MpRateLimiter RequestLimiter = new MpRateLimiter(4, 10f);
     private static readonly MpRateLimiter FetchLimiter = new MpRateLimiter(4, 10f);
+    private static readonly Stopwatch Clock = Stopwatch.StartNew();
     private static readonly MpCooldown Cooldown = new MpCooldown();
     private static MpSkinCache _cache;
 
     private static bool _handlers;
     private static bool _localSent;
     private static bool _requested;
+    private static bool _resend;
+    private static string _lastSharedSlot;
     private static string _signature;
     private static float _nextTick;
     private static float _nextReapply;
@@ -44,6 +51,10 @@ internal static class MpSkinSync
 
     internal static int CooldownSeconds =>
         IsCoolingDown ? Cooldown.RemainingSeconds(Time.unscaledTime) : 0;
+
+    // Server handlers can run off the main thread. Do not read Unity time
+    // there; use a monotonic clock for the server-side rate limits.
+    private static float ServerTime => (float)Clock.Elapsed.TotalSeconds;
 
     private static MpSkinCache Cache
     {
@@ -82,6 +93,7 @@ internal static class MpSkinSync
     {
         _signature = null;
         _localSent = false;
+        _resend = false;
         if (SkinLock.CanChangeOnce)
             _manualChoice = true;
     }
@@ -89,6 +101,8 @@ internal static class MpSkinSync
     internal static void OnLockChanged()
     {
         UploadPolicy.Clear();
+        foreach (uint playerId in LastContent.Keys)
+            UploadPolicy.MarkSeen(playerId);
     }
 
     internal static void OnShareChanged()
@@ -104,10 +118,14 @@ internal static class MpSkinSync
         if (SpriteReplacerPlugin.ShareSkins)
         {
             _localSent = false;
+            _resend = !string.IsNullOrEmpty(_lastSharedSlot) &&
+                      string.Equals(_lastSharedSlot, SpriteReplacerPlugin.ActiveSlot,
+                          StringComparison.Ordinal);
             return;
         }
 
         _localSent = true;
+        _resend = false;
         ClearLocalSkin();
     }
 
@@ -200,7 +218,12 @@ internal static class MpSkinSync
             _localSent = false;
         }
 
-        if (!_localSent && !IsCoolingDown && SpriteReplacerPlugin.ShareSkins && SkinLock.CanChangeLocal)
+        if (_resend && !string.Equals(_lastSharedSlot, SpriteReplacerPlugin.ActiveSlot,
+                StringComparison.Ordinal))
+            _resend = false;
+
+        if (!_localSent && !IsCoolingDown && SpriteReplacerPlugin.ShareSkins &&
+            (SkinLock.CanChangeLocal || _resend))
         {
             MpSkinPackage package = MpSkinPackage.FromSlot(SpriteReplacerPlugin.ActiveSlot);
             if (package != null)
@@ -227,7 +250,13 @@ internal static class MpSkinSync
                     }
                 }
 
-                if (sent) _localSent = true;
+                if (sent)
+                {
+                    _localSent = true;
+                    _resend = false;
+                    _lastSharedSlot = SpriteReplacerPlugin.ActiveSlot;
+                    SkinLock.HadLocalSkin = true;
+                }
                 else package.Dispose();
             }
         }
@@ -276,9 +305,9 @@ internal static class MpSkinSync
 
         try
         {
-            MultiplayerApi.RegisterServerHandler(FullChannel, OnServerFull);
-            MultiplayerApi.RegisterServerHandler(RequestChannel, OnServerRequest);
-            MultiplayerApi.RegisterServerHandler(FetchChannel, OnServerFetch);
+            RegisterSenderHandler(FullChannel, OnServerFull);
+            RegisterSenderHandler(RequestChannel, OnServerRequest);
+            RegisterSenderHandler(FetchChannel, OnServerFetch);
             MultiplayerApi.RegisterClientHandler(ApplyChannel, OnClientApply);
             MultiplayerApi.RegisterClientHandler(ManifestChannel, OnClientManifest);
             MultiplayerApi.RegisterClientHandler(SkinLock.LockChannel, SkinLock.ApplyRemote);
@@ -292,16 +321,63 @@ internal static class MpSkinSync
         _handlers = true;
     }
 
-    private static JToken OnServerFull(JToken token)
+    // CUCoreLib 1.0.6.1 has an internal sender-aware server handler. Use it
+    // when it is there, so the server checks the real network sender. Fall
+    // back to the payload client ID on an older or different CUCoreLib.
+    private static void RegisterSenderHandler(string channel,
+        Func<uint, JToken, JToken> handler)
+    {
+        try
+        {
+            MethodInfo method = typeof(MultiplayerBridge).GetMethod(
+                "RegisterServerHandler",
+                BindingFlags.Static | BindingFlags.NonPublic,
+                null,
+                new[] { typeof(string), typeof(Func<uint, JToken, JToken>) },
+                null);
+            if (method != null)
+            {
+                method.Invoke(null, new object[] { channel, handler });
+                Log("sender-aware handler registered for " + channel + ".");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log("sender handler failed for " + channel + ": " + ex.Message);
+        }
+
+        MultiplayerApi.RegisterServerHandler(channel, token => handler(0, token));
+        Log("sender-aware handler missing for " + channel + ". Using the payload client ID.");
+    }
+
+    private static JToken OnServerFull(uint sender, JToken token)
     {
         try
         {
             var payload = token as JObject;
             if (payload == null) return new JValue("bad");
 
+            uint claimedPlayer = ReadUInt(payload, "playerId");
+            if (sender != 0 && claimedPlayer != sender)
+            {
+                Log("rejected skin: claimed player " + claimedPlayer
+                    + ", sender " + sender + ".");
+                return new JValue("bad owner");
+            }
+
             uint ownerNetwork = ReadUInt(payload, "clientId");
-            uint ownerPlayer = ReadUInt(payload, "playerId");
-            if (ownerNetwork == 0) return new JValue("bad owner");
+            uint ownerPlayer = sender != 0 ? sender : claimedPlayer;
+            if (ownerNetwork == 0 || ownerPlayer == 0) return new JValue("bad owner");
+
+            if (sender != 0 && !MpBody.PlayerMatchesNetwork(ownerNetwork, ownerPlayer))
+            {
+                Log("rejected skin: network " + ownerNetwork
+                    + " does not match player " + ownerPlayer + ".");
+                return new JValue("bad owner");
+            }
+
+            payload["clientId"] = ownerNetwork;
 
             if (payload.Value<bool?>("clear") == true)
             {
@@ -311,27 +387,36 @@ internal static class MpSkinSync
                 return SkinLock.Payload(false);
             }
 
-            MpRateLimiter.Result limit = UploadLimiter.Check(ownerNetwork, Time.unscaledTime);
+            MpRateLimiter.Result limit = UploadLimiter.Check(ownerPlayer, ServerTime);
             if (!limit.Allowed && !limit.AcceptOnce)
             {
-                Log("rate limited upload from client " + ownerNetwork + " for "
+                Log("rate limited upload from player " + ownerPlayer + " for "
                     + limit.RetryIn.ToString("0") + "s, strike " + limit.Strikes + ".");
                 return SkinLock.Payload(false, limit.RetryIn, limit.Strikes);
             }
+            if (limit.AcceptOnce)
+                Log("rate limit tripped for player " + ownerPlayer + " for "
+                    + limit.RetryIn.ToString("0") + "s, strike " + limit.Strikes + ".");
 
             MpSkinPackage package = Parse(payload);
             if (package == null) return new JValue("reject");
 
-            MpUploadPolicy.Decision decision = UploadPolicy.Check(
-                ownerNetwork, SkinLock.IsLocked, Skins.ContainsKey(ownerNetwork));
+            bool sameSkin = !string.IsNullOrEmpty(package.ContentHash) &&
+                LastContent.TryGetValue(ownerPlayer, out string lastContent) &&
+                string.Equals(lastContent, package.ContentHash, StringComparison.OrdinalIgnoreCase);
+
+            MpUploadPolicy.Decision decision = sameSkin
+                ? MpUploadPolicy.Decision.Accept
+                : UploadPolicy.Check(ownerPlayer, SkinLock.IsLocked, HasStoredSkin(ownerPlayer));
             if (decision == MpUploadPolicy.Decision.Reject)
             {
                 package.Dispose();
-                Log("rejected locked skin from client " + ownerNetwork + ".");
+                Log("rejected locked skin from player " + ownerPlayer + ".");
                 return SkinLock.Payload(false);
             }
 
-            bool allow = SkinLock.IsLocked && decision == MpUploadPolicy.Decision.Accept;
+            bool allow = SkinLock.IsLocked && !sameSkin &&
+                decision == MpUploadPolicy.Decision.Accept;
 
             if (SpriteReplacerPlugin.DownloadSkins)
                 Cache.Store(package.Hash, package.Zip);
@@ -358,18 +443,18 @@ internal static class MpSkinSync
         }
     }
 
-    private static JToken OnServerRequest(JToken token)
+    private static JToken OnServerRequest(uint sender, JToken token)
     {
         try
         {
             var payload = token as JObject;
-            uint requester = payload == null ? 0 : ReadUInt(payload, "clientId");
+            uint requester = RequesterId(sender, payload);
             if (requester == 0) return new JValue("bad");
 
-            MpRateLimiter.Result limit = RequestLimiter.Check(requester, Time.unscaledTime);
+            MpRateLimiter.Result limit = RequestLimiter.Check(requester, ServerTime);
             if (!limit.Allowed && !limit.AcceptOnce)
             {
-                Log("rate limited request from client " + requester + " for "
+                Log("rate limited request from player " + requester + " for "
                     + limit.RetryIn.ToString("0") + "s, strike " + limit.Strikes + ".");
                 return SkinLock.Payload(false, limit.RetryIn, limit.Strikes);
             }
@@ -393,7 +478,7 @@ internal static class MpSkinSync
             MultiplayerApi.Broadcast(ManifestChannel, manifest, false, true);
 
             bool allow = SkinLock.IsLocked && UploadPolicy.HasAllowance(requester);
-            Log("broadcast manifest with " + entries.Count + " stored skins for client "
+            Log("broadcast manifest with " + entries.Count + " stored skins for player "
                 + requester + " allow=" + allow + ".");
 
             if (limit.AcceptOnce)
@@ -410,18 +495,18 @@ internal static class MpSkinSync
         }
     }
 
-    private static JToken OnServerFetch(JToken token)
+    private static JToken OnServerFetch(uint sender, JToken token)
     {
         try
         {
             var payload = token as JObject;
-            uint requester = payload == null ? 0 : ReadUInt(payload, "clientId");
+            uint requester = RequesterId(sender, payload);
             if (requester == 0) return new JValue("bad");
 
-            MpRateLimiter.Result limit = FetchLimiter.Check(requester, Time.unscaledTime);
+            MpRateLimiter.Result limit = FetchLimiter.Check(requester, ServerTime);
             if (!limit.Allowed && !limit.AcceptOnce)
             {
-                Log("rate limited fetch from client " + requester + " for "
+                Log("rate limited fetch from player " + requester + " for "
                     + limit.RetryIn.ToString("0") + "s, strike " + limit.Strikes + ".");
                 return SkinLock.Payload(false, limit.RetryIn, limit.Strikes);
             }
@@ -453,7 +538,7 @@ internal static class MpSkinSync
                 }
             }
 
-            Log("sent " + sent + " cached skins to client " + requester + ".");
+            Log("sent " + sent + " cached skins to player " + requester + ".");
             if (limit.AcceptOnce)
             {
                 return SkinLock.Payload(false, limit.RetryIn, limit.Strikes, true);
@@ -480,6 +565,7 @@ internal static class MpSkinSync
 
         Skins[network] = package;
         PlayerIds[network] = player;
+        LastContent[player] = package.ContentHash;
         Log("stored local skin for late join: network=" + network + " player=" + player + ".");
     }
 
@@ -620,6 +706,8 @@ internal static class MpSkinSync
     {
         SkinLock.ApplyRemote(token);
         HandleRateLimit(token, false);
+        if (token != null && token.Type == JTokenType.String)
+            Log("upload response: " + token);
     }
 
     private static void HandleRateLimit(JToken token, bool retryRequest)
@@ -728,6 +816,16 @@ internal static class MpSkinSync
         MpBody.ClearRemoteSkin(ownerNetwork, ownerPlayer);
     }
 
+    private static bool HasStoredSkin(uint playerId)
+    {
+        foreach (KeyValuePair<uint, uint> pair in PlayerIds)
+        {
+            if (pair.Value == playerId) return true;
+        }
+
+        return false;
+    }
+
     private static void Store(uint ownerNetwork, uint ownerPlayer, MpSkinPackage package)
     {
         if (Skins.TryGetValue(ownerNetwork, out MpSkinPackage old) && !ReferenceEquals(old, package))
@@ -735,6 +833,7 @@ internal static class MpSkinSync
 
         Skins[ownerNetwork] = package;
         PlayerIds[ownerNetwork] = ownerPlayer;
+        LastContent[ownerPlayer] = package.ContentHash;
         Pending[ownerNetwork] = package;
     }
 
@@ -777,6 +876,11 @@ internal static class MpSkinSync
         };
     }
 
+    private static uint RequesterId(uint sender, JObject payload)
+    {
+        return sender != 0 ? sender : (payload == null ? 0 : ReadUInt(payload, "clientId"));
+    }
+
     private static uint ReadUInt(JObject payload, string key)
     {
         JToken token = payload[key];
@@ -788,6 +892,8 @@ internal static class MpSkinSync
         _handlers = false;
         _localSent = false;
         _requested = false;
+        _resend = false;
+        _lastSharedSlot = null;
         _signature = null;
         _manualChoice = false;
         var packages = new HashSet<MpSkinPackage>(Skins.Values);
@@ -796,6 +902,7 @@ internal static class MpSkinSync
         Skins.Clear();
         Pending.Clear();
         PlayerIds.Clear();
+        LastContent.Clear();
         Waiting.Clear();
         UploadPolicy.Clear();
         UploadLimiter.Clear();
