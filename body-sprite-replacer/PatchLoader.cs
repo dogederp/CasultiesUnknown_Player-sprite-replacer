@@ -18,6 +18,16 @@ internal static class PatchLoader
         Patch(harmony, typeof(WoundView), "UpdateView", Type.EmptyTypes, typeof(WoundViewUpdatePatch), null, "Postfix");
         Patch(harmony, typeof(PlayerCamera), "Awake", Type.EmptyTypes, typeof(PlayerCameraAwakePatch), null, "Postfix");
         PatchSetter(harmony, typeof(SpriteRenderer), "sprite", typeof(SkinSpritePatch), "Prefix");
+
+        Type adaptive = typeof(Limb).Assembly.GetType("AdaptiveButton", false);
+        if (adaptive != null)
+        {
+            Patch(harmony, adaptive, "Clicked", Type.EmptyTypes, typeof(MainMenuGuardPatch), "Prefix", null);
+        }
+        else
+        {
+            Log("Patch target not found: AdaptiveButton. Main menu guard skipped.");
+        }
     }
 
     private static void Patch(Harmony harmony, Type type, string name, Type[] parameters,
@@ -105,5 +115,16 @@ internal static class PatchLoader
     {
         if (SpriteReplacerPlugin.Log != null)
             SpriteReplacerPlugin.Log.LogInfo("[Patch] " + message);
+    }
+}
+
+// The main menu uses AdaptiveButton, which reads the mouse directly and
+// bypasses the UI event system. Block its action while the custom menu is
+// open.
+public static class MainMenuGuardPatch
+{
+    static bool Prefix()
+    {
+        return !SkinMenuUI.IsPopupOpen;
     }
 }

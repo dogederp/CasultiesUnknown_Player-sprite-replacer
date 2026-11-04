@@ -12,7 +12,12 @@ internal static class SkinMenuUI
     private const float WindowHeight = 600f;
 
     private static GameObject _canvas;
+    private static GraphicRaycaster _canvasRaycaster;
+    private static readonly HashSet<GraphicRaycaster> _disabledRaycasters = new HashSet<GraphicRaycaster>();
+    private static readonly HashSet<Behaviour> _disabledButtons = new HashSet<Behaviour>();
+    private static Type _adaptiveButtonType;
     private static GameObject _popupWindow;
+    private static GameObject _popupBackdrop;
     private static GameObject _grid;
     private static GameObject _browserWindow;
     private static GameObject _browserBackdrop;
@@ -42,6 +47,8 @@ internal static class SkinMenuUI
 
     internal static bool IsFolderBrowserOpen => _browserWindow != null;
 
+    internal static bool IsPopupOpen => _popupWindow != null && _popupWindow.activeSelf;
+
     internal static void EnsureCanvas()
     {
         if (_canvas != null) return;
@@ -59,7 +66,7 @@ internal static class SkinMenuUI
         scaler.referenceResolution = GameTheme.ReferenceResolution;
         scaler.matchWidthOrHeight = GameTheme.MatchWidthOrHeight;
 
-        canvasObj.AddComponent<GraphicRaycaster>();
+        _canvasRaycaster = canvasObj.AddComponent<GraphicRaycaster>();
         UnityEngine.Object.DontDestroyOnLoad(canvasObj);
         _canvas = canvasObj;
 
@@ -216,6 +223,12 @@ internal static class SkinMenuUI
 
     internal static void TickCooldown()
     {
+        if (IsPopupOpen)
+        {
+            SetGameRaycasters(false);
+            SetGameButtons(false);
+        }
+
         UpdateCooldownLabel();
 
         if (!MpSkinSync.IsCoolingDown)
@@ -268,10 +281,11 @@ internal static class SkinMenuUI
         if (_popupWindow == null)
         {
             CreatePopup();
+            SetPopupVisible(true);
         }
         else
         {
-            _popupWindow.SetActive(!_popupWindow.activeSelf);
+            SetPopupVisible(!_popupWindow.activeSelf);
         }
 
         RefreshLockUi();
@@ -284,10 +298,11 @@ internal static class SkinMenuUI
         if (_popupWindow == null)
         {
             CreatePopup();
+            SetPopupVisible(true);
             return;
         }
 
-        _popupWindow.SetActive(true);
+        SetPopupVisible(true);
         RefreshLockUi();
     }
 
@@ -307,6 +322,8 @@ internal static class SkinMenuUI
     private static void CreatePopup()
     {
         if (_canvas == null) return;
+
+        CreateBackdrop();
 
         GameObject window = new GameObject("SkinReplacerPopup");
         window.transform.SetParent(_canvas.transform, false);
@@ -520,8 +537,94 @@ internal static class SkinMenuUI
 
     private static void ClosePopup()
     {
+        SetPopupVisible(false);
+    }
+
+    private static void SetPopupVisible(bool visible)
+    {
         if (_popupWindow != null)
-            _popupWindow.SetActive(false);
+            _popupWindow.SetActive(visible);
+        if (_popupBackdrop != null)
+            _popupBackdrop.SetActive(visible);
+
+        SetGameRaycasters(!visible);
+        SetGameButtons(!visible);
+    }
+
+    private static void SetGameButtons(bool enabled)
+    {
+        if (enabled)
+        {
+            foreach (Behaviour button in _disabledButtons)
+            {
+                if (button != null) button.enabled = true;
+            }
+            _disabledButtons.Clear();
+            return;
+        }
+
+        if (_adaptiveButtonType == null)
+            _adaptiveButtonType = typeof(Limb).Assembly.GetType("AdaptiveButton", false);
+        if (_adaptiveButtonType == null) return;
+
+        foreach (UnityEngine.Object obj in UnityEngine.Object.FindObjectsOfType(_adaptiveButtonType))
+        {
+            if (!(obj is Behaviour button) || !button.enabled) continue;
+
+            button.enabled = false;
+            _disabledButtons.Add(button);
+        }
+    }
+
+    private static void SetGameRaycasters(bool enabled)
+    {
+        if (enabled)
+        {
+            foreach (GraphicRaycaster raycaster in _disabledRaycasters)
+            {
+                if (raycaster != null) raycaster.enabled = true;
+            }
+            _disabledRaycasters.Clear();
+            return;
+        }
+
+        foreach (GraphicRaycaster raycaster in UnityEngine.Object.FindObjectsOfType<GraphicRaycaster>())
+        {
+            if (raycaster == null || raycaster == _canvasRaycaster) continue;
+            if (!raycaster.enabled) continue;
+
+            raycaster.enabled = false;
+            _disabledRaycasters.Add(raycaster);
+        }
+    }
+
+    private static void CreateBackdrop()
+    {
+        if (_popupBackdrop != null) return;
+
+        GameObject backdrop = new GameObject("SkinReplacerBackdrop");
+        backdrop.transform.SetParent(_canvas.transform, false);
+        RectTransform rect = backdrop.AddComponent<RectTransform>();
+        SetRect(rect, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        Image image = backdrop.AddComponent<Image>();
+        image.color = new Color(0f, 0f, 0f, 0.35f);
+        image.raycastTarget = true;
+
+        Button button = backdrop.AddComponent<Button>();
+        button.targetGraphic = image;
+        button.transition = Selectable.Transition.None;
+        button.onClick.AddListener(CloseFromBackdrop);
+
+        backdrop.transform.SetAsFirstSibling();
+        _popupBackdrop = backdrop;
+    }
+
+    private static void CloseFromBackdrop()
+    {
+        CloseFolderBrowser();
+        SetPopupVisible(false);
     }
 
     private static void OpenFolderBrowser(string slot)
