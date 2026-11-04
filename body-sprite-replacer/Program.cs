@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System;
 
-[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.3.0")]
+[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "1.4.0")]
 [BepInDependency("net.cucorelib", BepInDependency.DependencyFlags.SoftDependency)]
 public class SpriteReplacerPlugin : BaseUnityPlugin
 {
@@ -29,9 +29,18 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static ConfigEntry<string> _activeSlotSetting;
     private static ConfigEntry<int> _backupCountSetting;
+    private static ConfigEntry<bool> _shareSetting;
+    private static ConfigEntry<bool> _downloadSetting;
+    private static ConfigEntry<int> _cacheMbSetting;
 
     internal static int BackupCount =>
         _backupCountSetting == null ? DefaultBackupCount : Math.Max(0, _backupCountSetting.Value);
+
+    internal static bool ShareSkins => _shareSetting == null || _shareSetting.Value;
+    internal static bool DownloadSkins => _downloadSetting == null || _downloadSetting.Value;
+
+    internal static int MaxSkinCacheMB =>
+        _cacheMbSetting == null ? 64 : Math.Max(4, _cacheMbSetting.Value);
 
     private static readonly Dictionary<KeyCode, string> KeyMapping = new Dictionary<KeyCode, string>
     {
@@ -57,6 +66,17 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             new ConfigDescription(
                 "Number of backup folders to keep for each slot. Older backups are deleted. 0 keeps all backups.",
                 new AcceptableValueRange<int>(0, MaxBackupCount)));
+
+        _shareSetting = Config.Bind("Multiplayer", "ShareSkins", true,
+            "Share your selected skin with the other players.");
+
+        _downloadSetting = Config.Bind("Multiplayer", "DownloadSkins", true,
+            "Download and apply the skins that other players share.");
+
+        _cacheMbSetting = Config.Bind("Multiplayer", "MaxSkinCacheMB", 64,
+            new ConfigDescription(
+                "Maximum disk space for the remote skin cache.",
+                new AcceptableValueRange<int>(4, 512)));
 
         bool rootCreated = !Directory.Exists(SpritesPath);
         Directory.CreateDirectory(SpritesPath);
@@ -134,9 +154,26 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private class InputListener : MonoBehaviour
     {
+        private static bool _mpTickError;
+
         private void Update()
         {
             SkinMenuUI.SetVisible(MenuGate.ShouldShowButton());
+            SkinMenuUI.TickCooldown();
+
+            try
+            {
+                MpBody.Tick();
+                MpSkinSync.Tick();
+            }
+            catch (Exception ex)
+            {
+                if (!_mpTickError)
+                {
+                    _mpTickError = true;
+                    SpriteReplacerPlugin.Log.LogWarning("Multiplayer tick failed: " + ex);
+                }
+            }
 
             if (SkinMenuUI.IsFolderBrowserOpen) return;
             if (IsInputFieldFocused()) return;
@@ -174,6 +211,23 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         }
         slot = normalized;
 
+        if (MpSkinSync.IsCoolingDown)
+        {
+            SkinMenuUI.ShowStatus("Skin changes paused. Try again in "
+                + MpSkinSync.CooldownSeconds + "s.", GameTheme.WarningColor);
+            CoreLibIntegration.StoreActiveSlot(_activeSlot);
+            Log.LogInfo("Skin change blocked: rate limited.");
+            return false;
+        }
+
+        if (!SkinLock.CanChangeLocal)
+        {
+            SkinMenuUI.ShowStatus("Skins locked by host.", GameTheme.WarningColor);
+            CoreLibIntegration.StoreActiveSlot(_activeSlot);
+            Log.LogInfo("Skin change blocked: skins are locked.");
+            return false;
+        }
+
         if (!forceReload && slot == _activeSlot && LoadedSprites.Count > 0)
         {
             SkinMenuUI.RefreshSelection();
@@ -191,6 +245,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         CoreLibIntegration.StoreActiveSlot(slot);
         LoadCharacterSprites(slot);
         ApplyToAll();
+        MpSkinSync.OnLocalSkinChanged();
         SkinMenuUI.RefreshSelection();
         Log.LogInfo("Switched to " + slot);
         return true;
@@ -215,6 +270,32 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         _backupCountSetting.Value = value;
         if (_backupCountSetting.ConfigFile != null)
             _backupCountSetting.ConfigFile.Save();
+    }
+
+    internal static void SetShareSkins(bool value)
+    {
+        if (_shareSetting == null || _shareSetting.Value == value) return;
+        _shareSetting.Value = value;
+        if (_shareSetting.ConfigFile != null)
+            _shareSetting.ConfigFile.Save();
+    }
+
+    internal static void SetDownloadSkins(bool value)
+    {
+        if (_downloadSetting == null || _downloadSetting.Value == value) return;
+        _downloadSetting.Value = value;
+        if (_downloadSetting.ConfigFile != null)
+            _downloadSetting.ConfigFile.Save();
+    }
+
+    internal static void SetMaxSkinCacheMB(int value)
+    {
+        if (_cacheMbSetting == null) return;
+        value = Math.Max(4, Math.Min(512, value));
+        if (_cacheMbSetting.Value == value) return;
+        _cacheMbSetting.Value = value;
+        if (_cacheMbSetting.ConfigFile != null)
+            _cacheMbSetting.ConfigFile.Save();
     }
 
     internal static bool CharacterFolderExists(string character)
@@ -330,8 +411,15 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         }
     }
 
-    private static void ApplyToAll()
+    internal static void ApplyToAll()
     {
+        if (MpBody.IsActive)
+        {
+            MpBody.ApplyLocalSkin(LoadedSprites);
+            WoundViewIntegration.ApplyAll();
+            return;
+        }
+
         foreach (var limb in UnityEngine.Object.FindObjectsOfType<Limb>())
         {
             ApplyReplacement(limb);
@@ -349,6 +437,8 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     public static void ApplyReplacement(Limb limb)
     {
+        if (!MpBody.CanApply(limb.body)) return;
+
         SpriteRenderer sr = limb.GetComponent<SpriteRenderer>();
         if (sr != null && sr.sprite != null && LoadedSprites.TryGetValue(sr.sprite.name, out Sprite replacement))
         {
@@ -358,6 +448,8 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     public static void ApplyReplacementToTail(TailScript tail)
     {
+        if (!MpBody.CanApply(tail.GetComponentInParent<Body>())) return;
+
         SpriteRenderer sr = tail.GetComponent<SpriteRenderer>();
         if (sr != null && sr.sprite != null && LoadedSprites.TryGetValue(sr.sprite.name, out Sprite replacement))
         {
@@ -367,6 +459,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     public static void ApplyReplacementToFace(FacialExpression face)
     {
+        if (!MpBody.CanApply(face.body)) return;
         face.defaultHead = ReplaceSprite(face.defaultHead);
         face.defaultHeadMouth = ReplaceSprite(face.defaultHeadMouth);
         face.defaultHeadMouthHalf = ReplaceSprite(face.defaultHeadMouthHalf);
@@ -401,9 +494,11 @@ public class LimbAwakePatch
 {
     static void Postfix(Limb __instance)
     {
+        if (MpBody.IsActive) return;
+
         SpriteRenderer sr = __instance.GetComponent<SpriteRenderer>();
         if (sr != null && sr.sprite != null)
-            SpriteReplacerPlugin.Log.LogInfo("[SpriteReplacer] Limb sprite name: '" + sr.sprite.name + "'");
+            SpriteReplacerPlugin.Log.LogDebug("[SpriteReplacer] Limb sprite name: '" + sr.sprite.name + "'");
 
         SpriteReplacerPlugin.ApplyReplacement(__instance);
     }
@@ -414,6 +509,7 @@ public class FacialExpressionStartPatch
 {
     static void Postfix(FacialExpression __instance)
     {
+        if (MpBody.IsActive) return;
         SpriteReplacerPlugin.ApplyReplacementToFace(__instance);
     }
 }
@@ -423,6 +519,7 @@ public class TailScriptStartPatch
 {
     static void Postfix(TailScript __instance)
     {
+        if (MpBody.IsActive) return;
         SpriteReplacerPlugin.ApplyReplacementToTail(__instance);
     }
 }
@@ -430,8 +527,8 @@ public class TailScriptStartPatch
 [HarmonyPatch(typeof(Settings), "ApplyAll")]
 public class SettingsApplyAllPatch
 {
-    // The game re-applies saved settings at startup. Put the saved slot back
-    // into the dropdown first, so a stale dropdown value cannot win.
+    // The game re-applies saved settings at startup. Put the saved slot and
+    // backup count back first, so a stale value cannot win.
     static void Prefix()
     {
         CoreLibIntegration.StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);
