@@ -39,7 +39,7 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 
 - Click the **top-left button** in the main menu or the Escape menu.
 - The menu uses the game font, text colors, and button style. The mod reads them from the game settings menu at startup.
-- The skin selector shows all nine slots: `slot1` through `slot9`.
+- The skin selector shows all nine slots: `slot1` through `slot9`. Skins are in `slot1` to `slot3`. `slot4` to `slot9` are empty.
 - **Select** uses an existing slot. **Switch** imports a whole skin folder into that slot.
 - **Numpad 1 through 9**, the **skin cards**, or the **Active slot** dropdown in the settings tab changes the active slot while you play.
 - The mod remembers the last slot you selected and loads it at the next launch.
@@ -84,8 +84,10 @@ The mod does not create a pause and does not change the time scale.
 
 ## Sprite Credits
 
-- slot1 contains Mottrew by beebigirl https://skin.cat-bot.de/?skinid=163&page=4#skin-163
-- (slot2 to slot9) I copied the sprite files from GitHub user **Paili-16**. (I know I could have extracted them from the game files myself, but I wanted to save time.)
+- slot1 contains **Mottrew** by **beebigirl**: https://skin.cat-bot.de/?skinid=163&page=4#skin-163
+- slot2 contains **Milky** by **beebigirl**.
+- slot3 contains **Dune** by **beebigirl**.
+- slot4 to slot9 are empty. Add your own sprites there.
 
 ## Making Your Own Player Sprites
 
