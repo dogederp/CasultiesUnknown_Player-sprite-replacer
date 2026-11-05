@@ -112,7 +112,7 @@ The game tints the wound view layers at runtime: the outline layer gets a white 
 
 Links that have more custom sprites that I currently know of:
 
-https://skin.cat-bot.de/ (make sure to spit the Body and Head assets into separate files until I change the code to support one file)
+https://skin.cat-bot.de/
 
 https://github.com/Paili-16/Scav-Prototype-The-Characters-Skins
 
