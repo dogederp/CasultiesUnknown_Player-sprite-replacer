@@ -45,6 +45,7 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 - The mod remembers the last slot you selected and loads it at the next launch.
 - The mod looks for sprites in `CustomSprites/slot1` up to `CustomSprites/slot9`. Old `st1` to `st9` folders are renamed on the first launch.
 - A slot can also contain a `WoundView` subfolder. The mod replaces the wound screen art with these sprites.
+- The mod writes the game's default body, head, and wound-view sprites to `CustomSprites/default` when it sees them. Use this folder as a template. The mod does not overwrite a file that is already there. Delete the folder to get a fresh copy.
 - The button is hidden in the wound view, crafting panel, trade menu, and settings menu.
 - With CUCoreLib installed, the game's settings menu has a **Skin Replacer** tab with the **Backups kept per slot** and **Active slot** options. The **Active slot** dropdown is local to each player. It is a backup selector. The skin cards and Numpad 1 through 9 are the primary selectors.
 

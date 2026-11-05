@@ -12,6 +12,10 @@ BepInEx/
         │       ├── Body/
         │       ├── Head/
         │       └── WoundView/
+        ├── default/
+        │   ├── Body/
+        │   ├── Head/
+        │   └── WoundView/
         ├── slot1/
         │   ├── Body/
         │   │   ├── some_body_sprite.png
@@ -32,3 +36,5 @@ BepInEx/
 The **Switch** button writes a timestamped copy of the target slot to `backups/` before it replaces files. The mod creates `backups/` on demand. Each backup keeps the old `Body`, `Head`, and `WoundView` folders. The mod keeps the newest 5 backups for each slot by default. The **Backups kept per slot** setting changes the count. `0` keeps all backups.
 
 Old `st1` to `st9` folders are renamed to `slot1` to `slot9` on the first launch. If both folders exist, the mod keeps both and uses the new name. Old backups with an `stN_` prefix still count toward the limit and are pruned.
+
+The mod writes the game's own sprites to `default/` when it sees them. The folder uses the same `Body`, `Head`, and `WoundView` layout as a slot. The mod does not overwrite a file that is already there.

@@ -31,6 +31,7 @@ internal static class WoundViewIntegration
                 original = image.sprite;
                 Originals[image.GetInstanceID()] = original;
             }
+            DefaultSpriteExport.Capture(original);
 
             Sprite replacement;
             if (SpriteReplacerPlugin.LoadedSprites.TryGetValue(original.name, out replacement))
@@ -54,6 +55,7 @@ internal static class WoundViewIntegration
                 original = renderer.sprite;
                 Originals[renderer.GetInstanceID()] = original;
             }
+            DefaultSpriteExport.Capture(original);
 
             Sprite replacement;
             if (SpriteReplacerPlugin.LoadedSprites.TryGetValue(original.name, out replacement))
@@ -71,6 +73,8 @@ internal static class WoundViewIntegration
         {
             SpriteReplacerPlugin.Log.LogInfo("Applied " + replaced.Count + " wound view sprites.");
         }
+
+        DefaultSpriteExport.ExportNew();
     }
 
     // The game tints the inner wound layer near black. Keep custom colors visible.

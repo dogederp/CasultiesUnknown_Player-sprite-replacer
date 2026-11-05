@@ -22,6 +22,8 @@ public sealed class SkinSpriteReplacer : MonoBehaviour
             replacer.Original = renderer.sprite;
         }
 
+        DefaultSpriteExport.Capture(replacer.Original);
+
         replacer.Renderer = renderer;
         replacer.Sprites = sprites;
         return replacer;
@@ -57,6 +59,8 @@ internal static class SkinSpritePatch
 {
     private static void Prefix(SpriteRenderer __instance, ref Sprite value)
     {
+        DefaultSpriteExport.Capture(value);
+
         SkinSpriteReplacer replacer = __instance.GetComponent<SkinSpriteReplacer>();
         if (replacer == null || !replacer.Active || value == null || replacer.Sprites == null) return;
         if (replacer.Sprites.TryGetValue(value.name, out Sprite replacement))

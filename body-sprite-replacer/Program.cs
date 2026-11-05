@@ -417,23 +417,25 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         if (MpBody.IsActive)
         {
             MpBody.ApplyLocalSkin(LoadedSprites);
-            WoundViewIntegration.ApplyAll();
-            return;
+        }
+        else
+        {
+            foreach (var limb in UnityEngine.Object.FindObjectsOfType<Limb>())
+            {
+                ApplyReplacement(limb);
+            }
+            foreach (var tail in UnityEngine.Object.FindObjectsOfType<TailScript>())
+            {
+                ApplyReplacementToTail(tail);
+            }
+            foreach (var face in UnityEngine.Object.FindObjectsOfType<FacialExpression>())
+            {
+                ApplyReplacementToFace(face);
+            }
         }
 
-        foreach (var limb in UnityEngine.Object.FindObjectsOfType<Limb>())
-        {
-            ApplyReplacement(limb);
-        }
-        foreach (var tail in UnityEngine.Object.FindObjectsOfType<TailScript>())
-        {
-            ApplyReplacementToTail(tail);
-        }
-        foreach (var face in UnityEngine.Object.FindObjectsOfType<FacialExpression>())
-        {
-            ApplyReplacementToFace(face);
-        }
         WoundViewIntegration.ApplyAll();
+        DefaultSpriteExport.ExportNew();
     }
 
     public static void ApplyReplacement(Limb limb)
@@ -441,9 +443,12 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         if (!MpBody.CanApply(limb.body)) return;
 
         SpriteRenderer sr = limb.GetComponent<SpriteRenderer>();
-        if (sr != null && sr.sprite != null && LoadedSprites.TryGetValue(sr.sprite.name, out Sprite replacement))
+        if (sr != null && sr.sprite != null)
         {
-            sr.sprite = replacement;
+            DefaultSpriteExport.Capture(sr.sprite);
+
+            if (LoadedSprites.TryGetValue(sr.sprite.name, out Sprite replacement))
+                sr.sprite = replacement;
         }
     }
 
@@ -452,9 +457,12 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         if (!MpBody.CanApply(tail.GetComponentInParent<Body>())) return;
 
         SpriteRenderer sr = tail.GetComponent<SpriteRenderer>();
-        if (sr != null && sr.sprite != null && LoadedSprites.TryGetValue(sr.sprite.name, out Sprite replacement))
+        if (sr != null && sr.sprite != null)
         {
-            sr.sprite = replacement;
+            DefaultSpriteExport.Capture(sr.sprite);
+
+            if (LoadedSprites.TryGetValue(sr.sprite.name, out Sprite replacement))
+                sr.sprite = replacement;
         }
     }
 
@@ -469,6 +477,8 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
         if (face.nosebleedSprite != null)
         {
+            DefaultSpriteExport.Capture(face.nosebleedSprite.sprite);
+
             SkinSpriteReplacer replacer = face.nosebleedSprite.GetComponent<SkinSpriteReplacer>();
             if (replacer == null)
             {
@@ -498,6 +508,8 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static Sprite ReplaceSprite(Sprite s)
     {
+        DefaultSpriteExport.Capture(s);
+
         if (s != null && LoadedSprites.TryGetValue(s.name, out Sprite r))
             return r;
         return s;
