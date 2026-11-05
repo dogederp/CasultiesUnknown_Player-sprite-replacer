@@ -1,6 +1,6 @@
 # File structure
 
-The mod goes in `BepInEx/plugins`. Custom sprites go in subfolders under `CustomSprites`. Each folder holds one skin set: `slot1` to `slot9`. Each folder can contain a `Body`, a `Head`, and an optional `WoundView` subfolder.
+The mod goes in `BepInEx/plugins`. Custom sprites go in subfolders under `CustomSprites`. Each slot folder holds one skin set: `slot1` to `slot9`. Each folder can contain a `Body`, a `Head`, and an optional `WoundView` subfolder.
 
 ```
 BepInEx/
@@ -16,6 +16,10 @@ BepInEx/
         │   ├── Body/
         │   ├── Head/
         │   └── WoundView/
+        ├── BaseSprites_woundview/
+        │   └── BaseSprites/
+        │       ├── Experiment_Limb_0_Middle.png
+        │       └── ...
         ├── slot1/
         │   ├── Body/
         │   │   ├── some_body_sprite.png
@@ -38,3 +42,5 @@ The **Switch** button writes a timestamped copy of the target slot to `backups/`
 Old `st1` to `st9` folders are renamed to `slot1` to `slot9` on the first launch. If both folders exist, the mod keeps both and uses the new name. Old backups with an `stN_` prefix still count toward the limit and are pruned.
 
 The mod writes the game's own sprites to `default/` when it sees them. The folder uses the same `Body`, `Head`, and `WoundView` layout as a slot. The mod does not overwrite a file that is already there.
+
+`BaseSprites_woundview/BaseSprites` is a reference folder. It holds 30 PNGs of the game's wound-view art. The mod does not load this folder. Its file names are not the slot file names. Use `default/WoundView` for the file names.

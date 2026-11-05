@@ -84,9 +84,9 @@ The mod does not create a pause and does not change the time scale.
 
 ## Sprite Credits
 
-- slot1 contains **Mottrew** by **beebigirl**: https://skin.cat-bot.de/?skinid=163&page=4#skin-163
-- slot2 contains **Milky** by **beebigirl**.
-- slot3 contains **Dune** by **beebigirl**.
+- slot1 contains **Motthew** by **beebigirl**: https://skin.cat-bot.de/?skinid=163
+- slot2 contains **Milky (alt)** by **beebigirl**: https://skin.cat-bot.de/?skinid=237
+- slot3 contains **Dune (alt)** by **beebigirl**: https://skin.cat-bot.de/?skinid=226
 - slot4 to slot9 are empty. Add your own sprites there.
 
 ## Making Your Own Player Sprites
@@ -101,7 +101,9 @@ The nosebleed sprite is optional. Put `experimentNosebleed.png` in the slot's `H
 
 You can also use **Switch** to import a prepared skin folder. The folder must contain a `Body`, `Head`, or `WoundView` subfolder. The PNG file names must match the game sprites exactly. The importer warns about missing names.
 
-The `WoundView` folder holds the art for the health screen: the body image, the limb outlines, and the limb wound layers. Copy the file names from an existing `WoundView` folder.
+The `WoundView` folder holds the art for the health screen: the body image, the limb outlines, and the limb wound layers. Copy the file names from `CustomSprites/default/WoundView`.
+
+`CustomSprites/BaseSprites_woundview/BaseSprites` is a reference folder. It holds 30 PNGs of the game's wound-view art. The mod does not load this folder. Do not copy its file names. Use the names in `CustomSprites/default/WoundView`.
 
 The game tints the wound view layers at runtime: the outline layer gets a white to red tint, and the inner layer gets a black to red tint. The mod turns off the tint of an inner layer when its PNG has colors, so custom colors show. A white inner mask keeps the game tint.
 
