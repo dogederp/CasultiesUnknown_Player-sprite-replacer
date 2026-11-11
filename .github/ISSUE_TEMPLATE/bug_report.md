@@ -44,13 +44,13 @@ Use this form or the Nexus bugs tab. Do not report bugs in the mod comments.
 
 Attach `BepInEx/LogOutput.log`.
 
-For a multiplayer bug, also attach the client log from `BepInEx/multiplayer_logs/LogOutput.log`.
-
-If the log is large, attach the file. Do not paste the full log in the issue.
-
 ## Screenshots or video
 
 <!-- Optional. A screenshot of the menu or the sprite helps. -->
+
+## Other loaded mods
+
+<!-- Optional. List other mods that were loaded when the bug happened. -->
 
 ## Additional context
 
