@@ -13,7 +13,7 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 ## Compatibility
 
 - Loader: **BepInEx 5.4.23.5**
-- Game version: **Steam demo, April 21, 2026 build**
+- Game version: **Full game v1.0.0**
 - Optional: **CUCoreLib 1.0.6.1 or newer** for the in-game settings tab and multiplayer. Multiplayer also needs **Casualties Together 5.2.0**. The single-player skin selector works without CUCoreLib.
 
 ## About This Project
