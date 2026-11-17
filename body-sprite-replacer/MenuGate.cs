@@ -6,7 +6,11 @@ using UnityEngine.SceneManagement;
 internal static class MenuGate
 {
     private static bool _resolved;
-    private static FieldInfo _didIntroField;
+    private static FieldInfo _instanceField;
+    private static FieldInfo _contentWarningField;
+    private static FieldInfo _tutorialWarningField;
+    private static FieldInfo _runSettingsScreenField;
+    private static FieldInfo _creditsScreenField;
     private static FieldInfo _textObjField;
 
     internal static bool ShouldShowButton()
@@ -18,20 +22,28 @@ internal static class MenuGate
         return mainMenu || pauseMenu;
     }
 
-    // Main menu: intro story finished. didIntro flips true when intro STARTS
-    // (PreRunScript.TryLore), so also require ScrollableText.textObj == null
-    // (no intro text object alive) to ensure the intro has actually ended.
+    // Main menu: hide the button until the startup screens and the intro
+    // story close. This mirrors AdaptiveButton.overlayActive, the game's own
+    // gate for its menu buttons. didIntro is static and resets each launch,
+    // so it cannot show that the intro has ended. ScrollableText.textObj is
+    // null when no intro is alive.
     internal static bool IsMainMenuVisible()
     {
         Resolve();
-        if (_didIntroField == null) return false;
-        if (!(bool)_didIntroField.GetValue(null)) return false;
-        if (_textObjField == null) return true;
-        // textObj is destroyed (not nulled) when the intro closes, so use
-        // Unity's overloaded == which treats destroyed objects as null.
-        object val = _textObjField.GetValue(null);
-        if (val is UnityEngine.Object uo) return uo == null;
-        return val == null;
+
+        object preRun = _instanceField != null ? _instanceField.GetValue(null) : null;
+        if (!IsAlive(preRun)) return true;
+
+        if (IsActive(_runSettingsScreenField, preRun)) return false;
+        if (IsActive(_contentWarningField, preRun)) return false;
+        if (IsActive(_tutorialWarningField, preRun)) return false;
+        if (IsActive(_creditsScreenField, preRun)) return false;
+        if (SettingsMenuProbe.IsOpen()) return false;
+
+        if (_textObjField != null && IsAlive(_textObjField.GetValue(null)))
+            return false;
+
+        return true;
     }
 
     private static void Resolve()
@@ -39,19 +51,43 @@ internal static class MenuGate
         if (_resolved) return;
         _resolved = true;
 
-        Type preRunType = typeof(Limb).Assembly.GetType("PreRunScript");
+        Assembly asm = typeof(Limb).Assembly;
+        Type preRunType = asm.GetType("PreRunScript");
         if (preRunType != null)
-            _didIntroField = preRunType.GetField("didIntro",
+        {
+            _instanceField = preRunType.GetField("instance",
                 BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-        if (_didIntroField == null)
-            SpriteReplacerPlugin.Log.LogWarning("Could not find PreRunScript.didIntro via reflection");
+            _contentWarningField = preRunType.GetField("contentWarning",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            _tutorialWarningField = preRunType.GetField("tutorialWarning",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            _runSettingsScreenField = preRunType.GetField("runSettingsScreen",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            _creditsScreenField = preRunType.GetField("creditsScreen",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        }
+        if (_instanceField == null)
+            SpriteReplacerPlugin.Log.LogWarning("Could not find PreRunScript.instance via reflection");
 
-        Type scrollType = typeof(Limb).Assembly.GetType("ScrollableText");
+        Type scrollType = asm.GetType("ScrollableText");
         if (scrollType != null)
             _textObjField = scrollType.GetField("textObj",
                 BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
         if (_textObjField == null)
             SpriteReplacerPlugin.Log.LogWarning("Could not find ScrollableText.textObj via reflection");
+    }
+
+    private static bool IsActive(FieldInfo field, object instance)
+    {
+        if (field == null || instance == null) return false;
+        GameObject go = field.GetValue(instance) as GameObject;
+        return go != null && go.activeSelf;
+    }
+
+    private static bool IsAlive(object value)
+    {
+        if (value is UnityEngine.Object unityObject) return unityObject != null;
+        return value != null;
     }
 }
 

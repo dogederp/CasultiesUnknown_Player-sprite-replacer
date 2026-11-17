@@ -140,6 +140,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         Log.LogInfo($"Scene loaded: '{scene.name}' (mode: {mode})");
         SkinMenuUI.EnsureCanvas();
         SkinMenuUI.SetVisible(false);
+        KeybindRecovery.Apply();
         ApplyToAll();
     }
 
