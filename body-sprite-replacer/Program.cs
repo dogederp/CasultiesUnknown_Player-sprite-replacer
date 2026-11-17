@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System;
 
-[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "2.0.0")]
+[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "2.0.1")]
 [BepInDependency("net.cucorelib", BepInDependency.DependencyFlags.SoftDependency)]
 public class SpriteReplacerPlugin : BaseUnityPlugin
 {
@@ -140,6 +140,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         Log.LogInfo($"Scene loaded: '{scene.name}' (mode: {mode})");
         SkinMenuUI.EnsureCanvas();
         SkinMenuUI.SetVisible(false);
+        KeybindRecovery.Apply();
         ApplyToAll();
     }
 
