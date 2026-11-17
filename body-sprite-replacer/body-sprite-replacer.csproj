@@ -9,6 +9,8 @@
     <GameDir Condition="'$(GameDir)' == ''">$(BaseGamePath)</GameDir>
     <GameManagedDir Condition="'$(GameManagedDir)' == ''">$(GameDir)\CasualtiesUnknown_Data\Managed</GameManagedDir>
     <AssemblyCSharpPath Condition="'$(AssemblyCSharpPath)' == ''">$(GameManagedDir)\Assembly-CSharp.dll</AssemblyCSharpPath>
+    <CUCoreLibDllPath Condition="'$(CUCoreLibDllPath)' == '' and Exists('$(GameDir)\BepInEx\plugins\CUCoreLib.dll')">$(GameDir)\BepInEx\plugins\CUCoreLib.dll</CUCoreLibDllPath>
+    <CUCoreLibDllPath Condition="'$(CUCoreLibDllPath)' == '' and Exists('$(GameDir)\BepInEx\plugins\CUCoreLib.dll.disabled')">$(GameDir)\BepInEx\plugins\CUCoreLib.dll.disabled</CUCoreLibDllPath>
     <CUCoreLibDllPath Condition="'$(CUCoreLibDllPath)' == ''">$(GameDir)\BepInEx\plugins\CUCoreLib.dll</CUCoreLibDllPath>
     <LangVersion>10</LangVersion>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>

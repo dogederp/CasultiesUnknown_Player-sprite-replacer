@@ -2,6 +2,7 @@
 ![GitHub forks](https://img.shields.io/github/forks/dogederp/CasultiesUnknown_Player-sprite-replacer?style=plastic)
 ![GitHub Release](https://img.shields.io/github/v/release/dogederp/CasultiesUnknown_Player-sprite-replacer?style=plastic)
 ![GitHub commits since latest release](https://img.shields.io/github/commits-since/dogederp/CasultiesUnknown_Player-sprite-replacer/latest?style=plastic)
+![GitHub last commit](https://img.shields.io/github/last-commit/dogederp/CasultiesUnknown_Player-sprite-replacer?style=plastic)
 ![GitHub License](https://img.shields.io/github/license/dogederp/CasultiesUnknown_Player-sprite-replacer?style=plastic)
 
 
@@ -111,7 +112,7 @@ The game tints the wound view layers at runtime: the outline layer gets a white 
 
 Links that have more custom sprites that I currently know of:
 
-https://skin.cat-bot.de/ (make sure to spit the Body and Head assets into separate files until I change the code to support one file)
+https://skin.cat-bot.de/
 
 https://github.com/Paili-16/Scav-Prototype-The-Characters-Skins
 
@@ -129,6 +130,7 @@ https://github.com/Paili-16/Scav-Prototype-The-Characters-Skins
 - I am open to pull requests to improve the code.
 - Feel free to open an issue for questions or concerns.
 - Please consider giving this repository a star if you find it useful!
+- Buy me a coffee: https://buymeacoffee.com/dogederp
 
 ## Star History
 
@@ -139,6 +141,7 @@ https://github.com/Paili-16/Scav-Prototype-The-Characters-Skins
    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=dogederp/CasultiesUnknown_Player-sprite-replacer&type=date&legend=top-left" />
  </picture>
 </a>
+
 
 ## Looking for an alternative?
 

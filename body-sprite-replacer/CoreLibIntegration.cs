@@ -11,7 +11,11 @@ internal static class CoreLibIntegration
 {
     private const string SlotOptionId = "spritereplacer.activeSlot";
 
-    private static ModOptionDefinition _slotOption;
+    // Keep the CUCoreLib option as object. A field of a CUCoreLib type makes
+    // the runtime load CUCoreLib when it loads this class, even when the
+    // CUCoreLib assembly is absent. The cast stays inside the methods that
+    // run only when CUCoreLib is present.
+    private static object _slotOption;
     private static bool _slotOptionHidden;
     private static bool _slotSyncPatchApplied;
 
@@ -144,7 +148,7 @@ internal static class CoreLibIntegration
         if (options != null && _slotOption != null &&
             !options.Any(option => option != null && option.Id == SlotOptionId))
         {
-            options.Add(_slotOption);
+            options.Add((ModOptionDefinition)_slotOption);
         }
 
         return __exception;
