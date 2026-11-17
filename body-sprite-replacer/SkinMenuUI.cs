@@ -493,11 +493,25 @@ internal static class SkinMenuUI
 
     private static Sprite LoadHeadPreview(string slot)
     {
-        string path = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot, "Head", "experimentHead.png");
-        if (!File.Exists(path))
-            path = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot, "Head", "experimentHeadBack.png");
+        string path = null;
+        string[] names =
+        {
+            "experimentHead",
+            "experimentHeadBack",
+            "milkyheadback",
+            "duneHeadBack",
+            "duneHeadMouth"
+        };
 
-        if (!File.Exists(path)) return _placeholder;
+        foreach (string name in names)
+        {
+            string candidate = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot, "Head", name + ".png");
+            if (!File.Exists(candidate)) continue;
+            path = candidate;
+            break;
+        }
+
+        if (path == null) return _placeholder;
 
         Texture2D texture = null;
         try

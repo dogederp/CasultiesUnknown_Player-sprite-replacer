@@ -18,7 +18,9 @@ internal sealed class SkinCheckResult
 
 internal static class SkinImporter
 {
-    internal static readonly HashSet<string> BodyNames = new HashSet<string>(StringComparer.Ordinal)
+    // One list for each species. A slot can hold one species, or all of them.
+    // The body sprite names do not overlap, so the active species uses its set.
+    private static readonly string[] ExperimentBodyNames =
     {
         "experimentCrus",
         "experimentDownArm",
@@ -32,7 +34,38 @@ internal static class SkinImporter
         "experimentUpTorso"
     };
 
-    internal static readonly HashSet<string> HeadNames = new HashSet<string>(StringComparer.Ordinal)
+    private static readonly string[] MilkyBodyNames =
+    {
+        "mildownarm",
+        "milkycrus",
+        "milkydowntorso",
+        "milkyfoot",
+        "milkyhandb",
+        "milkyhandf",
+        "milkytail",
+        "milkythigh",
+        "milkyuparm",
+        "milkytorso"
+    };
+
+    private static readonly string[] DuneBodyNames =
+    {
+        "duneCrus",
+        "duneDownArm",
+        "duneDownArmAlt",
+        "duneDownTorso",
+        "duneFoot",
+        "duneHand",
+        "duneHandAlt",
+        "duneTail",
+        "duneThigh",
+        "duneThighAlt",
+        "duneUpArm",
+        "duneUpArmAlt",
+        "duneUpTorso"
+    };
+
+    private static readonly string[] ExperimentHeadNames =
     {
         "experimentEyeClosed",
         "experimentEyeGone",
@@ -40,6 +73,8 @@ internal static class SkinImporter
         "experimentEyeHalfClosed",
         "experimentEyeHalfClosedBack",
         "experimentEyeHappy",
+        "experimentEyeLockedIn",
+        "experimentEyeLockedInBack",
         "experimentEyeLookBack",
         "experimentEyeOpen",
         "experimentEyePanic",
@@ -59,6 +94,65 @@ internal static class SkinImporter
         "experimentHeadDisfigured3Healed",
         "experimentNosebleed"
     };
+
+    private static readonly string[] MilkyHeadNames =
+    {
+        "milkydisfigure1",
+        "milkydisfigure1healed",
+        "milkydisfigure2",
+        "milkydisfigure2healed",
+        "milkyeyeclosed",
+        "milkyeyegone",
+        "milkyeyegonehealed",
+        "milkyeyehalfclosed",
+        "milkyeyehalfclosedback",
+        "milkyeyehappy",
+        "milkyeyehappyback",
+        "milkyeyelockedin",
+        "milkyeyelockedinback",
+        "milkyeyeopen",
+        "milkyeyeopenback",
+        "milkyeyepanic",
+        "milkyeyesad",
+        "milkyeyesadback",
+        "milkyeyescared",
+        "milkyeyescaredback",
+        "milkyheadback",
+        "milkyheadbackmouthhalfopen",
+        "milkyheadbackmouthopen"
+    };
+
+    private static readonly string[] DuneHeadNames =
+    {
+        "duneDisfigured",
+        "duneDisfiguredHealed",
+        "duneEyeGone",
+        "duneEyeGoneHealed",
+        "duneEyeHappy",
+        "duneEyePanic",
+        "duneEyeSad",
+        "duneEyeScared",
+        "duneEyes",
+        "duneEyesClosed",
+        "duneEyesHalfClosed",
+        "duneHeadBack",
+        "duneHeadMouth",
+        "duneHeadMouthHalf",
+        "duneeyelockedin"
+    };
+
+    private static readonly string[][] BodyGroups =
+    {
+        ExperimentBodyNames, MilkyBodyNames, DuneBodyNames
+    };
+
+    private static readonly string[][] HeadGroups =
+    {
+        ExperimentHeadNames, MilkyHeadNames, DuneHeadNames
+    };
+
+    internal static readonly HashSet<string> BodyNames = MakeSet(BodyGroups);
+    internal static readonly HashSet<string> HeadNames = MakeSet(HeadGroups);
 
     internal static readonly HashSet<string> KnownNames = new HashSet<string>(
         BodyNames.Concat(HeadNames), StringComparer.Ordinal);
@@ -81,12 +175,27 @@ internal static class SkinImporter
         "handMiddle",
         "handOutline",
         "headMiddle",
+        "headMiddleDune",
         "headoutline",
+        "headOuterDune",
+        "milkheadmiddle",
+        "milkheadouter",
         "thighMiddle",
         "thighOutline",
         "thoraxMiddle",
         "thoraxOutline"
     };
+
+    private static HashSet<string> MakeSet(string[][] groups)
+    {
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string[] group in groups)
+        {
+            foreach (string name in group)
+                set.Add(name);
+        }
+        return set;
+    }
 
     internal static SkinCheckResult Check(string sourceDir, string slot)
     {
@@ -159,15 +268,48 @@ internal static class SkinImporter
         }
 
         int present = 0;
-        foreach (string name in KnownNames)
+        int total = 0;
+        for (int i = 0; i < BodyGroups.Length; i++)
         {
-            if (bodySet.Contains(name) || headSet.Contains(name)) present++;
+            string[] body = BodyGroups[i];
+            string[] head = HeadGroups[i];
+            bool targeted = false;
+
+            foreach (string name in body)
+            {
+                if (!bodySet.Contains(name)) continue;
+                targeted = true;
+                break;
+            }
+
+            if (!targeted)
+            {
+                foreach (string name in head)
+                {
+                    if (name == "experimentNosebleed") continue;
+                    if (!headSet.Contains(name)) continue;
+                    targeted = true;
+                    break;
+                }
+            }
+
+            if (!targeted) continue;
+
+            total += body.Length + head.Length;
+            foreach (string name in body)
+            {
+                if (bodySet.Contains(name) || headSet.Contains(name)) present++;
+            }
+            foreach (string name in head)
+            {
+                if (bodySet.Contains(name) || headSet.Contains(name)) present++;
+            }
         }
 
-        int missing = KnownNames.Count - present;
-        if (missing > 0 && result.TotalCount > 0)
+        int missing = total - present;
+        if (missing > 0 && total > 0)
         {
-            result.Warnings.Add("Partial skin: " + missing + " of " + KnownNames.Count +
+            result.Warnings.Add("Partial skin: " + missing + " of " + total +
                                 " names are missing. Missing parts keep the current sprite.");
         }
 

@@ -573,6 +573,16 @@ public class WoundViewAwakePatch
     }
 }
 
+[HarmonyPatch(typeof(WoundView), "Start")]
+public class WoundViewStartPatch
+{
+    static void Postfix(WoundView __instance)
+    {
+        WoundViewIntegration.ForgetHeadOriginals(__instance);
+        WoundViewIntegration.Apply(__instance);
+    }
+}
+
 [HarmonyPatch(typeof(WoundView), "UpdateView")]
 public class WoundViewUpdatePatch
 {

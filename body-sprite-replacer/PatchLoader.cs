@@ -17,6 +17,7 @@ internal static class PatchLoader
         Patch(harmony, typeof(SettingsMenu), "SelectTab", new[] { typeof(int) },
             typeof(BugReportSettingsPatch), "Prefix", "Postfix");
         Patch(harmony, typeof(WoundView), "Awake", Type.EmptyTypes, typeof(WoundViewAwakePatch), null, "Postfix");
+        Patch(harmony, typeof(WoundView), "Start", Type.EmptyTypes, typeof(WoundViewStartPatch), null, "Postfix");
         Patch(harmony, typeof(WoundView), "UpdateView", Type.EmptyTypes, typeof(WoundViewUpdatePatch), null, "Postfix");
         Patch(harmony, typeof(PlayerCamera), "Awake", Type.EmptyTypes, typeof(PlayerCameraAwakePatch), null, "Postfix");
         PatchSetter(harmony, typeof(SpriteRenderer), "sprite", typeof(SkinSpritePatch), "Prefix");

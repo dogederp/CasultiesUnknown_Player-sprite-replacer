@@ -5,7 +5,8 @@ using System;
 internal static class MpSkinRules
 {
     internal const int MaxZipBytes = 4 * 1024 * 1024;
-    internal const int MaxEntries = 64;
+    // A slot can hold the Experiment, Milky, and Dune sets together.
+    internal const int MaxEntries = 128;
     internal const int MaxEntryBytes = 1024 * 1024;
     internal const int MaxUncompressedBytes = 16 * 1024 * 1024;
     internal const int MaxTextureSize = 2048;
