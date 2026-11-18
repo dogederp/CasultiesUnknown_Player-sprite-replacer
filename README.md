@@ -8,7 +8,7 @@
 
 # Casualties Unknown - Player Sprite Replacer
 
-A small hobby mod for Casualties Unknown that swaps player body/head sprites at runtime using BepInEx.
+A mod for Casualties Unknown that swaps player body/head sprites at runtime using BepInEx.
 
 ## Compatibility
 
@@ -18,7 +18,6 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 
 ## About This Project
 
-- This is a hobby project I made for fun.
 - If the game creator **Orsoniks** does not want this mod to be public, please contact me and I will take action.
 
 ## Installation
@@ -42,6 +41,7 @@ A small hobby mod for Casualties Unknown that swaps player body/head sprites at 
 - The menu uses the game font, text colors, and button style. The mod reads them from the game settings menu at startup.
 - The skin selector shows all nine slots: `slot1` through `slot9`. Skins are in `slot1` to `slot3`. `slot4` to `slot9` are empty.
 - **Select** uses an existing slot. **Switch** imports a whole skin folder into that slot.
+- Each card shows the species in the slot: Experiment, Milky, Dune, or All species. In a run, a slot without sprites for the current species shows a warning and its **Select** button is disabled.
 - **Numpad 1 through 9**, the **skin cards**, or the **Active slot** dropdown in the settings tab changes the active slot while you play.
 - The mod remembers the last slot you selected and loads it at the next launch.
 - The mod looks for sprites in `CustomSprites/slot1` up to `CustomSprites/slot9`. Old `st1` to `st9` folders are renamed on the first launch.

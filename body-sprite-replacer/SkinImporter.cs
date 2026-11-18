@@ -11,6 +11,7 @@ internal sealed class SkinCheckResult
     internal int BodyCount;
     internal int HeadCount;
     internal int WoundViewCount;
+    internal int SpeciesMask;
 
     internal bool Ok => Errors.Count == 0;
     internal int TotalCount => BodyCount + HeadCount + WoundViewCount;
@@ -18,6 +19,11 @@ internal sealed class SkinCheckResult
 
 internal static class SkinImporter
 {
+    internal const int SpeciesExperiment = 1;
+    internal const int SpeciesMilky = 2;
+    internal const int SpeciesDune = 4;
+    internal const int SpeciesAll = SpeciesExperiment | SpeciesMilky | SpeciesDune;
+
     // One list for each species. A slot can hold one species, or all of them.
     // The body sprite names do not overlap, so the active species uses its set.
     private static readonly string[] ExperimentBodyNames =
@@ -141,6 +147,18 @@ internal static class SkinImporter
         "duneeyelockedin"
     };
 
+    private static readonly string[] MilkyWoundNames =
+    {
+        "milkheadmiddle",
+        "milkheadouter"
+    };
+
+    private static readonly string[] DuneWoundNames =
+    {
+        "headMiddleDune",
+        "headOuterDune"
+    };
+
     private static readonly string[][] BodyGroups =
     {
         ExperimentBodyNames, MilkyBodyNames, DuneBodyNames
@@ -195,6 +213,64 @@ internal static class SkinImporter
                 set.Add(name);
         }
         return set;
+    }
+
+    // Reads the installed slot and returns the species that have at least one
+    // sprite in it. The names are unique, so no manifest is needed.
+    internal static int DetectSpecies(string slotFolder)
+    {
+        if (string.IsNullOrEmpty(slotFolder) || !Directory.Exists(slotFolder)) return 0;
+
+        return DetectSpecies(
+            ReadNames(slotFolder, "Body"),
+            ReadNames(slotFolder, "Head"),
+            ReadNames(slotFolder, "WoundView"));
+    }
+
+    internal static int DetectSpecies(HashSet<string> body, HashSet<string> head,
+        HashSet<string> wound)
+    {
+        int mask = 0;
+        for (int i = 0; i < BodyGroups.Length; i++)
+        {
+            bool found = ContainsAny(BodyGroups[i], body) || ContainsAny(HeadGroups[i], head);
+            if (!found && i == 1) found = ContainsAny(MilkyWoundNames, wound);
+            if (!found && i == 2) found = ContainsAny(DuneWoundNames, wound);
+            if (found) mask |= 1 << i;
+        }
+        return mask;
+    }
+
+    internal static string SpeciesLabel(int mask)
+    {
+        if (mask == 0) return "";
+        if (mask == SpeciesAll) return "All species";
+
+        var parts = new List<string>(3);
+        if ((mask & SpeciesExperiment) != 0) parts.Add("Experiment");
+        if ((mask & SpeciesMilky) != 0) parts.Add("Milky");
+        if ((mask & SpeciesDune) != 0) parts.Add("Dune");
+        return string.Join(" + ", parts);
+    }
+
+    private static HashSet<string> ReadNames(string root, string subfolder)
+    {
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        string path = Path.Combine(root, subfolder);
+        if (!Directory.Exists(path)) return set;
+
+        foreach (string file in Directory.GetFiles(path, "*.png"))
+            set.Add(Path.GetFileNameWithoutExtension(file));
+        return set;
+    }
+
+    private static bool ContainsAny(string[] names, HashSet<string> set)
+    {
+        foreach (string name in names)
+        {
+            if (set.Contains(name)) return true;
+        }
+        return false;
     }
 
     internal static SkinCheckResult Check(string sourceDir, string slot)
@@ -258,6 +334,7 @@ internal static class SkinImporter
         result.BodyCount = bodySet.Count;
         result.HeadCount = headSet.Count;
         result.WoundViewCount = woundViewSet.Count;
+        result.SpeciesMask = DetectSpecies(bodySet, headSet, woundViewSet);
 
         if (result.TotalCount == 0)
             result.Errors.Add("No PNG files with known sprite names were found.");

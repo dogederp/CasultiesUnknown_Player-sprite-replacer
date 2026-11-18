@@ -35,6 +35,11 @@ internal static class SkinMenuUI
     private static readonly Dictionary<string, Outline> _cardOutlines = new Dictionary<string, Outline>();
     private static readonly Dictionary<string, Button> _cardSelectButtons = new Dictionary<string, Button>();
     private static readonly Dictionary<string, Button> _cardSwitchButtons = new Dictionary<string, Button>();
+    private static readonly Dictionary<string, Image> _cardPreviews = new Dictionary<string, Image>();
+    private static readonly Dictionary<string, TextMeshProUGUI> _cardLabels =
+        new Dictionary<string, TextMeshProUGUI>();
+    private static readonly Dictionary<string, int> _cardSpeciesMasks = new Dictionary<string, int>();
+    private static TextMeshProUGUI _hint;
     private static readonly List<Texture2D> _previewTextures = new List<Texture2D>();
     private static Button _lockButton;
     private static TextMeshProUGUI _lockStatus;
@@ -107,6 +112,77 @@ internal static class SkinMenuUI
             if (_cardOutlines.TryGetValue(pair.Key, out Outline outline) && outline != null)
                 outline.effectColor = active ? GameTheme.AccentColor : GameTheme.BorderColor;
         }
+
+        RefreshSpeciesUi();
+    }
+
+    private static int CurrentSpeciesMask()
+    {
+        PlayerCamera camera = PlayerCamera.main;
+        if (camera == null || camera.body == null) return 0;
+
+        int charType = camera.body.charType;
+        if (charType < 0 || charType > 2) return 0;
+        return 1 << charType;
+    }
+
+    private static void RefreshSpeciesUi()
+    {
+        int runMask = CurrentSpeciesMask();
+        bool runActive = runMask != 0;
+
+        foreach (var pair in _cardLabels)
+        {
+            string slot = pair.Key;
+            TextMeshProUGUI label = pair.Value;
+            if (label == null) continue;
+
+            int mask;
+            _cardSpeciesMasks.TryGetValue(slot, out mask);
+            bool hasSkin = SpriteReplacerPlugin.CharacterFolderExists(slot);
+            bool mismatch = runActive && mask != 0 && (mask & runMask) == 0;
+            label.color = mismatch
+                ? GameTheme.WarningColor
+                : (hasSkin ? GameTheme.TextColor : GameTheme.MutedColor);
+        }
+
+        foreach (var pair in _cardPreviews)
+        {
+            Image preview = pair.Value;
+            if (preview == null) continue;
+
+            string slot = pair.Key;
+            bool hasSkin = SpriteReplacerPlugin.CharacterFolderExists(slot);
+            int mask;
+            _cardSpeciesMasks.TryGetValue(slot, out mask);
+            bool mismatch = runActive && mask != 0 && (mask & runMask) == 0;
+            bool active = slot == SpriteReplacerPlugin.ActiveSlot;
+
+            if (!hasSkin)
+                preview.color = new Color(1f, 1f, 1f, 0.35f);
+            else if (mismatch && !active)
+                preview.color = new Color(1f, 1f, 1f, 0.45f);
+            else
+                preview.color = Color.white;
+        }
+
+        if (_hint == null) return;
+        if (!runActive)
+        {
+            _hint.text = "Numpad 1-9 also changes the slot.";
+            _hint.color = GameTheme.MutedColor;
+            return;
+        }
+
+        string runName = SkinImporter.SpeciesLabel(runMask);
+        int activeMask;
+        _cardSpeciesMasks.TryGetValue(SpriteReplacerPlugin.ActiveSlot, out activeMask);
+        bool activeMismatch = activeMask != 0 && (activeMask & runMask) == 0;
+
+        _hint.text = activeMismatch
+            ? runName + " run: no " + runName + " sprites."
+            : "Run: " + runName + ". Numpad 1-9 also changes the slot.";
+        _hint.color = activeMismatch ? GameTheme.WarningColor : GameTheme.MutedColor;
     }
 
     internal static void RefreshLockUi()
@@ -159,7 +235,9 @@ internal static class SkinMenuUI
         foreach (var pair in _cardSelectButtons)
         {
             if (pair.Value != null)
-                pair.Value.interactable = canChange && SpriteReplacerPlugin.CharacterFolderExists(pair.Key);
+                pair.Value.interactable = canChange
+                    && SpriteReplacerPlugin.CharacterFolderExists(pair.Key)
+                    && SpriteReplacerPlugin.SlotSupportsCurrentSpecies(pair.Key);
         }
 
         UpdateCooldownLabel();
@@ -362,10 +440,11 @@ internal static class SkinMenuUI
         SetRect(_lockStatus.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
             new Vector2(1f, 0.5f), new Vector2(-70f, 0f), new Vector2(300f, 32f));
 
-        TextMeshProUGUI hint = CreateText(window.transform, "Hint",
+        _hint = CreateText(window.transform, "Hint",
             "Numpad 1-9 also changes the slot.",
             14, GameTheme.MutedColor, TextAlignmentOptions.MidlineLeft);
-        SetRect(hint.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
+        _hint.enableWordWrapping = false;
+        SetRect(_hint.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(24f, -64f), new Vector2(330f, 28f));
 
         _shareButton = CreateButton(window.transform, "Share", "Share: ON",
@@ -407,6 +486,9 @@ internal static class SkinMenuUI
         _cardOutlines.Clear();
         _cardSelectButtons.Clear();
         _cardSwitchButtons.Clear();
+        _cardPreviews.Clear();
+        _cardLabels.Clear();
+        _cardSpeciesMasks.Clear();
 
         GameObject gridObj = new GameObject("CharacterGrid");
         gridObj.transform.SetParent(_popupWindow.transform, false);
@@ -469,12 +551,22 @@ internal static class SkinMenuUI
         preview.sprite = LoadHeadPreview(slot);
         preview.preserveAspect = true;
         preview.color = hasSkin ? Color.white : new Color(1f, 1f, 1f, 0.35f);
+        _cardPreviews[slot] = preview;
 
-        TextMeshProUGUI label = CreateText(card.transform, "SlotLabel",
-            hasSkin ? SlotFolders.DisplayName(slot) : SlotFolders.DisplayName(slot) + " (empty)",
-            18, hasSkin ? GameTheme.TextColor : GameTheme.MutedColor, TextAlignmentOptions.Center);
+        int mask = hasSkin
+            ? SkinImporter.DetectSpecies(Path.Combine(SpriteReplacerPlugin.SpritesPath, slot))
+            : 0;
+        _cardSpeciesMasks[slot] = mask;
+
+        string title = hasSkin
+            ? SlotFolders.DisplayName(slot) + ": "
+                + (mask == 0 ? "Unknown species" : SkinImporter.SpeciesLabel(mask))
+            : SlotFolders.DisplayName(slot) + " (empty)";
+        TextMeshProUGUI label = CreateText(card.transform, "SlotLabel", title, 15,
+            hasSkin ? GameTheme.TextColor : GameTheme.MutedColor, TextAlignmentOptions.Center);
         SetRect(label.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -82f), new Vector2(216f, 24f));
+            new Vector2(0f, -84f), new Vector2(216f, 24f));
+        _cardLabels[slot] = label;
 
         Button select = CreateButton(card.transform, "Select", "Select", GameTheme.TextColor, 16);
         SetRect(select.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
@@ -563,6 +655,8 @@ internal static class SkinMenuUI
 
         SetGameRaycasters(!visible);
         SetGameButtons(!visible);
+
+        if (visible) RefreshSpeciesUi();
     }
 
     private static void SetGameButtons(bool enabled)
@@ -1033,6 +1127,8 @@ internal static class SkinMenuUI
         string message = "";
         if (movedHead > 0) message += "Moved " + movedHead + " Head sprites into Head.\n";
         message += "Imported " + check.TotalCount + " sprites into " + SlotFolders.DisplayName(_pendingSlot) + ".";
+        string species = SkinImporter.SpeciesLabel(check.SpeciesMask);
+        if (!string.IsNullOrEmpty(species)) message += "\nSpecies: " + species + ".";
         Color messageColor = GameTheme.SuccessColor;
 
         if (check.Warnings.Count > 0)
@@ -1045,6 +1141,15 @@ internal static class SkinMenuUI
         }
 
         if (!string.IsNullOrEmpty(backup)) SpriteReplacerPlugin.Log.LogInfo("Backup: " + backup);
+
+        if (!SpriteReplacerPlugin.SlotSupportsCurrentSpecies(_pendingSlot))
+        {
+            string current = SpriteReplacerPlugin.CurrentSpeciesName() ?? "the current species";
+            message += "\nNot selected: no " + current + " sprites.";
+            SetStatus(message, GameTheme.WarningColor);
+            BuildGrid();
+            return;
+        }
 
         SetStatus(message, messageColor);
         SpriteReplacerPlugin.SwitchToSlot(_pendingSlot, true);

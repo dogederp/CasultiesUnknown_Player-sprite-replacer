@@ -242,6 +242,14 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             return false;
         }
 
+        if (!SlotSupportsCurrentSpecies(slot))
+        {
+            string species = CurrentSpeciesName() ?? "the current species";
+            SkinMenuUI.ShowStatus("This slot has no " + species + " sprites.", GameTheme.WarningColor);
+            Log.LogInfo("Skin change blocked: slot has no " + species + " sprites.");
+            return false;
+        }
+
         _activeSlot = slot;
         SaveActiveSlot(slot);
         CoreLibIntegration.StoreActiveSlot(slot);
@@ -311,6 +319,31 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         // Empty prepared dirs don't count as an available character; need actual png sprites.
         return (Directory.Exists(bodyPath) && Directory.GetFiles(bodyPath, "*.png").Length > 0) ||
                (Directory.Exists(headPath) && Directory.GetFiles(headPath, "*.png").Length > 0);
+    }
+
+    internal static bool SlotSupportsCurrentSpecies(string slot)
+    {
+        PlayerCamera camera = PlayerCamera.main;
+        if (camera == null || camera.body == null) return true;
+
+        int charType = camera.body.charType;
+        if (charType < 0 || charType > 2) return true;
+
+        string normalized = SlotFolders.Normalize(slot);
+        if (normalized == null) return false;
+
+        int mask = SkinImporter.DetectSpecies(Path.Combine(SpritesPath, normalized));
+        return (mask & (1 << charType)) != 0;
+    }
+
+    internal static string CurrentSpeciesName()
+    {
+        PlayerCamera camera = PlayerCamera.main;
+        if (camera == null || camera.body == null) return null;
+
+        int charType = camera.body.charType;
+        if (charType < 0 || charType > 2) return null;
+        return SkinImporter.SpeciesLabel(1 << charType);
     }
 
     private static void EnsureCustomSpritesStructure()
@@ -578,7 +611,12 @@ public class WoundViewStartPatch
 {
     static void Postfix(WoundView __instance)
     {
-        WoundViewIntegration.ForgetHeadOriginals(__instance);
+        // The game changes the head in Start only for Milky and Dune. For the
+        // Experiment, the current head can be the custom sprite. Keep the
+        // original, so a later slot switch reverts to the game sprite.
+        if (__instance != null && __instance.body != null && __instance.body.charType != 0)
+            WoundViewIntegration.ForgetHeadOriginals(__instance);
+
         WoundViewIntegration.Apply(__instance);
     }
 }
