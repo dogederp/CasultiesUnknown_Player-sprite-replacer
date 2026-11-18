@@ -4,8 +4,8 @@ using System.IO;
 using UnityEngine;
 
 // Writes the game's own body, head, and wound-view sprites to
-// CustomSprites/default. The sprites are captured before the mod replaces
-// them, so the folder always holds the game art.
+// CustomSprites/<species>/default. The sprites are captured before the mod
+// replaces them, so the folder always holds the game art.
 internal static class DefaultSpriteExport
 {
     private const string FolderName = "default";
@@ -32,13 +32,20 @@ internal static class DefaultSpriteExport
         return null;
     }
 
+    // Species folder for a stock sprite name. Shared wound art stays in Exp.
+    private static int SpeciesFolder(string name)
+    {
+        if (name == "milkheadouter" || name == "milkheadmiddle") return 1;
+        if (name == "headOuterDune" || name == "headMiddleDune") return 2;
+        return 0;
+    }
+
     // Writes only the files that are not on disk yet. A user can delete one
     // file to get a fresh copy, and an edited file is never overwritten.
     internal static int ExportNew()
     {
         if (Captured.Count == 0) return 0;
 
-        string root = Path.Combine(SpriteReplacerPlugin.SpritesPath, FolderName);
         int written = 0;
 
         foreach (KeyValuePair<string, Sprite> pair in Captured)
@@ -46,6 +53,7 @@ internal static class DefaultSpriteExport
             string folder = FolderFor(pair.Key);
             if (folder == null) continue;
 
+            string root = Path.Combine(SpriteReplacerPlugin.SpeciesRoot(SpeciesFolder(pair.Key)), FolderName);
             string path = Path.Combine(root, folder, pair.Key + ".png");
             if (File.Exists(path)) continue;
 
@@ -66,8 +74,7 @@ internal static class DefaultSpriteExport
         }
 
         if (written > 0)
-            SpriteReplacerPlugin.Log.LogInfo(
-                "Exported " + written + " default sprites to " + root);
+            SpriteReplacerPlugin.Log.LogInfo("Exported " + written + " default sprites.");
 
         return written;
     }

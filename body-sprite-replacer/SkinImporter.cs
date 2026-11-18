@@ -11,7 +11,6 @@ internal sealed class SkinCheckResult
     internal int BodyCount;
     internal int HeadCount;
     internal int WoundViewCount;
-    internal int SpeciesMask;
 
     internal bool Ok => Errors.Count == 0;
     internal int TotalCount => BodyCount + HeadCount + WoundViewCount;
@@ -19,13 +18,7 @@ internal sealed class SkinCheckResult
 
 internal static class SkinImporter
 {
-    internal const int SpeciesExperiment = 1;
-    internal const int SpeciesMilky = 2;
-    internal const int SpeciesDune = 4;
-    internal const int SpeciesAll = SpeciesExperiment | SpeciesMilky | SpeciesDune;
-
-    // One list for each species. A slot can hold one species, or all of them.
-    // The body sprite names do not overlap, so the active species uses its set.
+    // One list for each species. The body and head names do not overlap.
     private static readonly string[] ExperimentBodyNames =
     {
         "experimentCrus",
@@ -147,6 +140,36 @@ internal static class SkinImporter
         "duneeyelockedin"
     };
 
+    // Wound sprites that every species uses.
+    private static readonly string[] SharedWoundNames =
+    {
+        "abdomenMiddle",
+        "abdomenOutline",
+        "armMiddle",
+        "armOutline",
+        "crusMiddle",
+        "crusOutline",
+        "footMiddle",
+        "footOutline",
+        "forearmMiddle",
+        "forearmOutline",
+        "handMiddle",
+        "handOutline",
+        "thighMiddle",
+        "thighOutline",
+        "thoraxMiddle",
+        "thoraxOutline"
+    };
+
+    private static readonly string[] ExperimentWoundNames =
+    {
+        "disfiguredExpWound",
+        "experimentBody",
+        "eyeGoneExpWound",
+        "headMiddle",
+        "headoutline"
+    };
+
     private static readonly string[] MilkyWoundNames =
     {
         "milkheadmiddle",
@@ -169,40 +192,40 @@ internal static class SkinImporter
         ExperimentHeadNames, MilkyHeadNames, DuneHeadNames
     };
 
+    private static readonly HashSet<string>[] BodySets = BuildSets(BodyGroups);
+    private static readonly HashSet<string>[] HeadSets = BuildSets(HeadGroups);
+    private static readonly HashSet<string>[] WoundSets = BuildWoundSets();
+
     internal static readonly HashSet<string> BodyNames = MakeSet(BodyGroups);
     internal static readonly HashSet<string> HeadNames = MakeSet(HeadGroups);
+
+    internal static readonly HashSet<string> WoundViewNames = MakeSet(new[]
+    {
+        SharedWoundNames, ExperimentWoundNames, MilkyWoundNames, DuneWoundNames
+    });
 
     internal static readonly HashSet<string> KnownNames = new HashSet<string>(
         BodyNames.Concat(HeadNames), StringComparer.Ordinal);
 
-    internal static readonly HashSet<string> WoundViewNames = new HashSet<string>(StringComparer.Ordinal)
+    private static HashSet<string>[] BuildSets(string[][] groups)
     {
-        "abdomenMiddle",
-        "abdomenOutline",
-        "armMiddle",
-        "armOutline",
-        "crusMiddle",
-        "crusOutline",
-        "disfiguredExpWound",
-        "experimentBody",
-        "eyeGoneExpWound",
-        "footMiddle",
-        "footOutline",
-        "forearmMiddle",
-        "forearmOutline",
-        "handMiddle",
-        "handOutline",
-        "headMiddle",
-        "headMiddleDune",
-        "headoutline",
-        "headOuterDune",
-        "milkheadmiddle",
-        "milkheadouter",
-        "thighMiddle",
-        "thighOutline",
-        "thoraxMiddle",
-        "thoraxOutline"
-    };
+        var sets = new HashSet<string>[groups.Length];
+        for (int i = 0; i < groups.Length; i++)
+            sets[i] = new HashSet<string>(groups[i], StringComparer.Ordinal);
+        return sets;
+    }
+
+    private static HashSet<string>[] BuildWoundSets()
+    {
+        var sets = new HashSet<string>[3];
+        for (int i = 0; i < sets.Length; i++)
+        {
+            sets[i] = new HashSet<string>(SharedWoundNames, StringComparer.Ordinal);
+            foreach (string name in i == 0 ? ExperimentWoundNames : i == 1 ? MilkyWoundNames : DuneWoundNames)
+                sets[i].Add(name);
+        }
+        return sets;
+    }
 
     private static HashSet<string> MakeSet(string[][] groups)
     {
@@ -215,67 +238,58 @@ internal static class SkinImporter
         return set;
     }
 
-    // Reads the installed slot and returns the species that have at least one
-    // sprite in it. The names are unique, so no manifest is needed.
-    internal static int DetectSpecies(string slotFolder)
+    internal static HashSet<string> BodyNamesFor(int species)
     {
-        if (string.IsNullOrEmpty(slotFolder) || !Directory.Exists(slotFolder)) return 0;
-
-        return DetectSpecies(
-            ReadNames(slotFolder, "Body"),
-            ReadNames(slotFolder, "Head"),
-            ReadNames(slotFolder, "WoundView"));
+        return BodySets[ClampSpecies(species)];
     }
 
-    internal static int DetectSpecies(HashSet<string> body, HashSet<string> head,
-        HashSet<string> wound)
+    internal static HashSet<string> HeadNamesFor(int species)
     {
-        int mask = 0;
-        for (int i = 0; i < BodyGroups.Length; i++)
-        {
-            bool found = ContainsAny(BodyGroups[i], body) || ContainsAny(HeadGroups[i], head);
-            if (!found && i == 1) found = ContainsAny(MilkyWoundNames, wound);
-            if (!found && i == 2) found = ContainsAny(DuneWoundNames, wound);
-            if (found) mask |= 1 << i;
-        }
-        return mask;
+        return HeadSets[ClampSpecies(species)];
     }
 
-    internal static string SpeciesLabel(int mask)
+    internal static HashSet<string> WoundNamesFor(int species)
     {
-        if (mask == 0) return "";
-        if (mask == SpeciesAll) return "All species";
-
-        var parts = new List<string>(3);
-        if ((mask & SpeciesExperiment) != 0) parts.Add("Experiment");
-        if ((mask & SpeciesMilky) != 0) parts.Add("Milky");
-        if ((mask & SpeciesDune) != 0) parts.Add("Dune");
-        return string.Join(" + ", parts);
+        return WoundSets[ClampSpecies(species)];
     }
 
-    private static HashSet<string> ReadNames(string root, string subfolder)
+    internal static string SpeciesName(int species)
     {
-        var set = new HashSet<string>(StringComparer.Ordinal);
-        string path = Path.Combine(root, subfolder);
-        if (!Directory.Exists(path)) return set;
+        return SpriteReplacerPlugin.SpeciesNames[ClampSpecies(species)];
+    }
 
-        foreach (string file in Directory.GetFiles(path, "*.png"))
-            set.Add(Path.GetFileNameWithoutExtension(file));
+    // A species page accepts its own names plus experiment names. The loader
+    // aliases experiment names to the live species names.
+    private static HashSet<string> AllowedBodyNames(int species)
+    {
+        int index = ClampSpecies(species);
+        if (index == 0) return BodySets[0];
+
+        var set = new HashSet<string>(BodySets[index], StringComparer.Ordinal);
+        set.UnionWith(BodySets[0]);
         return set;
     }
 
-    private static bool ContainsAny(string[] names, HashSet<string> set)
+    private static HashSet<string> AllowedHeadNames(int species)
     {
-        foreach (string name in names)
-        {
-            if (set.Contains(name)) return true;
-        }
-        return false;
+        int index = ClampSpecies(species);
+        if (index == 0) return HeadSets[0];
+
+        var set = new HashSet<string>(HeadSets[index], StringComparer.Ordinal);
+        set.UnionWith(HeadSets[0]);
+        return set;
     }
 
-    internal static SkinCheckResult Check(string sourceDir, string slot)
+    private static int ClampSpecies(int species)
+    {
+        if (species >= 0 && species <= 2) return species;
+        return SpriteReplacerPlugin.ActiveSpecies;
+    }
+
+    internal static SkinCheckResult Check(string sourceDir, string slot, int species = -1)
     {
         var result = new SkinCheckResult();
+        species = ClampSpecies(species);
 
         string normalized = SlotFolders.Normalize(slot);
         if (normalized == null)
@@ -310,7 +324,7 @@ internal static class SkinImporter
             return result;
         }
 
-        string targetRoot = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot);
+        string targetRoot = SpriteReplacerPlugin.SlotDirectory(slot, species);
         if (SamePath(sourceDir, targetRoot))
         {
             result.Errors.Add("The source folder is the target slot. Choose a different folder.");
@@ -321,9 +335,13 @@ internal static class SkinImporter
         var headSet = new HashSet<string>(StringComparer.Ordinal);
         var woundViewSet = new HashSet<string>(StringComparer.Ordinal);
 
-        if (hasBody) CheckFolder(bodyDir, "Body", slot, BodyNames, bodySet, result);
-        if (hasHead) CheckFolder(headDir, "Head", slot, HeadNames, headSet, result);
-        if (hasWoundView) CheckFolder(woundViewDir, "WoundView", slot, WoundViewNames, woundViewSet, result);
+        HashSet<string> allowedBody = AllowedBodyNames(species);
+        HashSet<string> allowedHead = AllowedHeadNames(species);
+        HashSet<string> allowedWound = WoundNamesFor(species);
+
+        if (hasBody) CheckFolder(bodyDir, "Body", slot, species, allowedBody, bodySet, result);
+        if (hasHead) CheckFolder(headDir, "Head", slot, species, allowedHead, headSet, result);
+        if (hasWoundView) CheckFolder(woundViewDir, "WoundView", slot, species, allowedWound, woundViewSet, result);
 
         foreach (string name in bodySet)
         {
@@ -334,54 +352,44 @@ internal static class SkinImporter
         result.BodyCount = bodySet.Count;
         result.HeadCount = headSet.Count;
         result.WoundViewCount = woundViewSet.Count;
-        result.SpeciesMask = DetectSpecies(bodySet, headSet, woundViewSet);
 
         if (result.TotalCount == 0)
             result.Errors.Add("No PNG files with known sprite names were found.");
 
-        if (woundViewSet.Count == 0 && HasAnyTargetFolder(slot, "WoundView"))
+        if (woundViewSet.Count == 0 && HasAnyTargetFolder(slot, species, "WoundView"))
         {
             result.Warnings.Add("No WoundView PNG files: the import removes the current wound view.");
         }
 
-        int present = 0;
-        int total = 0;
-        for (int i = 0; i < BodyGroups.Length; i++)
+        // Count a partial skin against one name set. A species-named skin counts
+        // the species names. An experiment-named skin counts the experiment names.
+        bool speciesStyle = false;
+        foreach (string name in BodySets[species])
         {
-            string[] body = BodyGroups[i];
-            string[] head = HeadGroups[i];
-            bool targeted = false;
-
-            foreach (string name in body)
+            if (bodySet.Contains(name))
             {
-                if (!bodySet.Contains(name)) continue;
-                targeted = true;
+                speciesStyle = true;
                 break;
             }
+        }
 
-            if (!targeted)
+        if (!speciesStyle)
+        {
+            foreach (string name in HeadSets[species])
             {
-                foreach (string name in head)
+                if (headSet.Contains(name))
                 {
-                    if (name == "experimentNosebleed") continue;
-                    if (!headSet.Contains(name)) continue;
-                    targeted = true;
+                    speciesStyle = true;
                     break;
                 }
             }
-
-            if (!targeted) continue;
-
-            total += body.Length + head.Length;
-            foreach (string name in body)
-            {
-                if (bodySet.Contains(name) || headSet.Contains(name)) present++;
-            }
-            foreach (string name in head)
-            {
-                if (bodySet.Contains(name) || headSet.Contains(name)) present++;
-            }
         }
+
+        int style = species == 0 ? 0 : (speciesStyle ? species : 0);
+        int present = CountPresent(BodyGroups[style], bodySet, headSet);
+        present += CountPresent(HeadGroups[style], bodySet, headSet);
+        int total = BodyGroups[style].Length + HeadGroups[style].Length;
+        if (style == 0) total--; // experimentNosebleed is optional
 
         int missing = total - present;
         if (missing > 0 && total > 0)
@@ -393,10 +401,23 @@ internal static class SkinImporter
         return result;
     }
 
-    internal static bool Import(string sourceDir, string slot, out string backupPath, out string error)
+    private static int CountPresent(string[] names, HashSet<string> body, HashSet<string> head)
+    {
+        int count = 0;
+        foreach (string name in names)
+        {
+            if (name == "experimentNosebleed") continue;
+            if (body.Contains(name) || head.Contains(name)) count++;
+        }
+        return count;
+    }
+
+    internal static bool Import(string sourceDir, string slot, out string backupPath, out string error,
+        int species = -1)
     {
         backupPath = null;
         error = null;
+        species = ClampSpecies(species);
 
         string normalized = SlotFolders.Normalize(slot);
         if (normalized == null)
@@ -406,19 +427,19 @@ internal static class SkinImporter
         }
         slot = normalized;
 
-        SkinCheckResult check = Check(sourceDir, slot);
+        SkinCheckResult check = Check(sourceDir, slot, species);
         if (!check.Ok)
         {
             error = string.Join("\n", check.Errors);
             return false;
         }
 
-        string targetRoot = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot);
+        string targetRoot = SpriteReplacerPlugin.SlotDirectory(slot, species);
 
         try
         {
             if (HasAnyTargetFiles(targetRoot))
-                backupPath = CreateBackup(targetRoot, slot);
+                backupPath = CreateBackup(targetRoot, slot, species);
 
             foreach (string subfolder in new[] { "Body", "Head", "WoundView" })
             {
@@ -428,7 +449,7 @@ internal static class SkinImporter
                 string[] pngs = GetPngFiles(sourceSub);
                 if (pngs.Length == 0) continue;
 
-                HashSet<string> allowed = AllowedNamesFor(subfolder);
+                HashSet<string> allowed = AllowedNamesFor(subfolder, species);
                 string[] knownPngs = pngs
                     .Where(png => allowed.Contains(Path.GetFileNameWithoutExtension(png)))
                     .ToArray();
@@ -444,7 +465,8 @@ internal static class SkinImporter
 
             string sourceWoundDir = Path.Combine(sourceDir, "WoundView");
             bool sourceHasWoundPngs = Directory.Exists(sourceWoundDir) &&
-                GetPngFiles(sourceWoundDir).Any(png => WoundViewNames.Contains(Path.GetFileNameWithoutExtension(png)));
+                GetPngFiles(sourceWoundDir).Any(png => WoundNamesFor(species).Contains(
+                    Path.GetFileNameWithoutExtension(png)));
             if (!sourceHasWoundPngs)
             {
                 string targetWoundDir = Path.Combine(targetRoot, "WoundView");
@@ -471,10 +493,12 @@ internal static class SkinImporter
         }
     }
 
-    internal static bool PrepareSkinFolder(string sourceDir, string slot, out int movedCount, out string error)
+    internal static bool PrepareSkinFolder(string sourceDir, string slot, out int movedCount,
+        out string error, int species = -1)
     {
         movedCount = 0;
         error = null;
+        species = ClampSpecies(species);
 
         string normalized = SlotFolders.Normalize(slot);
         if (normalized == null)
@@ -491,13 +515,14 @@ internal static class SkinImporter
         bool headHasPngs = Directory.Exists(headDir) && GetPngFiles(headDir).Length > 0;
         if (headHasPngs) return true;
 
-        string targetRoot = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot);
+        string targetRoot = SpriteReplacerPlugin.SlotDirectory(slot, species);
         if (SamePath(sourceDir, targetRoot)) return true;
 
+        HashSet<string> headNames = AllowedHeadNames(species);
         var headFiles = new List<string>();
         foreach (string png in GetPngFiles(bodyDir))
         {
-            if (HeadNames.Contains(Path.GetFileNameWithoutExtension(png))) headFiles.Add(png);
+            if (headNames.Contains(Path.GetFileNameWithoutExtension(png))) headFiles.Add(png);
         }
 
         if (headFiles.Count == 0)
@@ -542,7 +567,7 @@ internal static class SkinImporter
         }
     }
 
-    private static void CheckFolder(string folder, string subfolder, string slot,
+    private static void CheckFolder(string folder, string subfolder, string slot, int species,
         HashSet<string> allowed, HashSet<string> present, SkinCheckResult result)
     {
         string[] files;
@@ -569,18 +594,19 @@ internal static class SkinImporter
 
             if (!present.Add(name)) continue;
 
-            CheckPng(file, name, subfolder, slot, result);
+            CheckPng(file, name, subfolder, slot, species, result);
         }
     }
 
-    private static HashSet<string> AllowedNamesFor(string subfolder)
+    private static HashSet<string> AllowedNamesFor(string subfolder, int species)
     {
-        if (subfolder == "Body") return BodyNames;
-        if (subfolder == "Head") return HeadNames;
-        return WoundViewNames;
+        if (subfolder == "Body") return AllowedBodyNames(species);
+        if (subfolder == "Head") return AllowedHeadNames(species);
+        return WoundNamesFor(species);
     }
 
-    private static void CheckPng(string file, string name, string subfolder, string slot, SkinCheckResult result)
+    private static void CheckPng(string file, string name, string subfolder, string slot,
+        int species, SkinCheckResult result)
     {
         Texture2D tex = null;
         try
@@ -596,7 +622,7 @@ internal static class SkinImporter
 
             int targetWidth;
             int targetHeight;
-            if (TryGetTargetSize(slot, subfolder, name, out targetWidth, out targetHeight))
+            if (TryGetTargetSize(slot, species, subfolder, name, out targetWidth, out targetHeight))
             {
                 if (targetWidth != tex.width || targetHeight != tex.height)
                 {
@@ -615,12 +641,14 @@ internal static class SkinImporter
         }
     }
 
-    private static bool TryGetTargetSize(string slot, string subfolder, string name, out int width, out int height)
+    private static bool TryGetTargetSize(string slot, int species, string subfolder, string name,
+        out int width, out int height)
     {
         width = 0;
         height = 0;
 
-        string path = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot, subfolder, name + ".png");
+        string path = Path.Combine(SpriteReplacerPlugin.SlotDirectory(slot, species),
+            subfolder, name + ".png");
         if (!File.Exists(path)) return false;
 
         Texture2D tex = null;
@@ -652,15 +680,15 @@ internal static class SkinImporter
         return false;
     }
 
-    private static bool HasAnyTargetFolder(string slot, string subfolder)
+    private static bool HasAnyTargetFolder(string slot, int species, string subfolder)
     {
-        string path = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot, subfolder);
+        string path = Path.Combine(SpriteReplacerPlugin.SlotDirectory(slot, species), subfolder);
         return Directory.Exists(path) && Directory.GetFiles(path).Length > 0;
     }
 
-    private static string CreateBackup(string targetRoot, string slot)
+    private static string CreateBackup(string targetRoot, string slot, int species)
     {
-        string root = Path.Combine(SpriteReplacerPlugin.SpritesPath, "backups");
+        string root = SpriteReplacerPlugin.BackupRootFor(species);
         Directory.CreateDirectory(root);
 
         string stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -685,7 +713,7 @@ internal static class SkinImporter
                 File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), true);
         }
 
-        PruneBackups(slot, SpriteReplacerPlugin.BackupCount);
+        PruneBackups(slot, species, SpriteReplacerPlugin.BackupCount);
         return backup;
     }
 
@@ -694,11 +722,14 @@ internal static class SkinImporter
         int keep = SpriteReplacerPlugin.BackupCount;
         if (keep <= 0) return;
 
-        for (int i = 1; i <= SpriteReplacerPlugin.SlotCount; i++)
-            PruneBackups(SlotFolders.SlotId(i), keep);
+        for (int species = 0; species < 3; species++)
+        {
+            for (int i = 1; i <= SpriteReplacerPlugin.SlotCount; i++)
+                PruneBackups(SlotFolders.SlotId(i), species, keep);
+        }
     }
 
-    private static void PruneBackups(string slot, int keep)
+    private static void PruneBackups(string slot, int species, int keep)
     {
         if (keep <= 0) return;
 
@@ -706,7 +737,7 @@ internal static class SkinImporter
         if (normalized == null) return;
         slot = normalized;
 
-        string root = Path.Combine(SpriteReplacerPlugin.SpritesPath, "backups");
+        string root = SpriteReplacerPlugin.BackupRootFor(species);
         if (!Directory.Exists(root)) return;
 
         var dirs = new List<string>();
@@ -715,7 +746,7 @@ internal static class SkinImporter
             dirs.AddRange(Directory.GetDirectories(root, slot + "_*"));
 
             string legacy = SlotFolders.LegacySlotId(SlotFolders.Index(slot) + 1);
-            if (legacy != slot)
+            if (legacy != null && legacy != slot)
                 dirs.AddRange(Directory.GetDirectories(root, legacy + "_*"));
         }
         catch (Exception ex)

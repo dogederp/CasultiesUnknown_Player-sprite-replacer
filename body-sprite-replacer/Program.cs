@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System;
 
-[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "2.0.1")]
+[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "2.1.0")]
 [BepInDependency("net.cucorelib", BepInDependency.DependencyFlags.SoftDependency)]
 public class SpriteReplacerPlugin : BaseUnityPlugin
 {
@@ -19,15 +19,83 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     public const int DefaultBackupCount = 5;
     public const int MaxBackupCount = 50;
 
+    // The folder names are exact. The page names are for the menu.
+    internal static readonly string[] SpeciesNames = { "Exp", "Milky", "Dune" };
+    internal static readonly string[] SpeciesPageNames = { "Expie", "Milky", "Dune" };
+
     public static string SpritesPath => Path.Combine(Paths.PluginPath, "CustomSprites");
     public static Dictionary<string, Sprite> LoadedSprites = new Dictionary<string, Sprite>();
     internal static readonly HashSet<string> ColoredWoundSprites = new HashSet<string>();
     internal static ManualLogSource Log;
 
-    private static string _activeSlot = SlotFolders.SlotId(1);
+    private static string _activeSlot = SlotFolders.DefaultFolder;
+    // Species the loaded folder came from. Slot names repeat on each page.
+    private static int _appliedSpecies = -1;
+    // Last folder that failed to load, so a missing slot is not retried every frame.
+    private static string _syncFailed;
+    private static int _syncFailedSpecies = -1;
     public static string ActiveSlot => _activeSlot;
 
+    // The local body decides the page. No body counts as Experiment.
+    internal static int ActiveSpecies
+    {
+        get
+        {
+            PlayerCamera camera = PlayerCamera.main;
+            if (camera == null || camera.body == null) return 0;
+
+            int charType = camera.body.charType;
+            return charType >= 0 && charType <= 2 ? charType : 0;
+        }
+    }
+
+    internal static string SpeciesRoot(int species)
+    {
+        if (species < 0 || species >= SpeciesNames.Length) species = 0;
+        return Path.Combine(SpritesPath, SpeciesNames[species]);
+    }
+
+    internal static string SlotDirectory(string slot)
+    {
+        return SlotDirectory(slot, ActiveSpecies);
+    }
+
+    internal static string SlotDirectory(string slot, int species)
+    {
+        return Path.Combine(SpeciesRoot(species), slot);
+    }
+
+    internal static string BackupRoot => BackupRootFor(ActiveSpecies);
+
+    internal static string BackupRootFor(int species)
+    {
+        return Path.Combine(SpeciesRoot(species), "backups");
+    }
+
+    internal static string FolderForSpecies(int species)
+    {
+        ConfigEntry<string> setting = SpeciesSlotSetting(species);
+        string slot = setting == null ? null : SlotFolders.Normalize(setting.Value);
+        return slot ?? SlotFolders.DefaultFolder;
+    }
+
+    internal static bool IsDefaultSlot(string slot)
+    {
+        return SlotFolders.IsDefault(slot);
+    }
+
+    private static ConfigEntry<string> SpeciesSlotSetting(int species)
+    {
+        if (species == 1) return _milkySlotSetting;
+        if (species == 2) return _duneSlotSetting;
+        return _expSlotSetting;
+    }
+
     private static ConfigEntry<string> _activeSlotSetting;
+    private static ConfigEntry<string> _expSlotSetting;
+    private static ConfigEntry<string> _milkySlotSetting;
+    private static ConfigEntry<string> _duneSlotSetting;
+    private static ConfigEntry<int> _layoutVersionSetting;
     private static ConfigEntry<int> _backupCountSetting;
     private static ConfigEntry<bool> _shareSetting;
     private static ConfigEntry<bool> _downloadSetting;
@@ -44,6 +112,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static readonly Dictionary<KeyCode, string> KeyMapping = new Dictionary<KeyCode, string>
     {
+        { KeyCode.Keypad0, SlotFolders.DefaultFolder },
         { KeyCode.Keypad1, SlotFolders.SlotId(1) },
         { KeyCode.Keypad2, SlotFolders.SlotId(2) },
         { KeyCode.Keypad3, SlotFolders.SlotId(3) },
@@ -59,8 +128,20 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
     {
         Log = Logger;
 
-        _activeSlotSetting = Config.Bind("General", "ActiveSlot", SlotFolders.SlotId(1),
-            "The CustomSprites slot that loads at startup. Values: slot1 to slot9. Old st1 to st9 values still work.");
+        _activeSlotSetting = Config.Bind("General", "ActiveSlot", SlotFolders.DefaultFolder,
+            "Last folder applied. The per-species settings win over this value.");
+
+        _expSlotSetting = Config.Bind("General", "ExpSlot", SlotFolders.DefaultFolder,
+            "The Exp folder to use. Values: default, slot1 to slot9.");
+
+        _milkySlotSetting = Config.Bind("General", "MilkySlot", SlotFolders.DefaultFolder,
+            "The Milky folder to use. Values: default, slot1 to slot9.");
+
+        _duneSlotSetting = Config.Bind("General", "DuneSlot", SlotFolders.DefaultFolder,
+            "The Dune folder to use. Values: default, slot1 to slot9.");
+
+        _layoutVersionSetting = Config.Bind("General", "LayoutVersion", 0,
+            "Internal layout version. Do not change this value.");
 
         _backupCountSetting = Config.Bind("General", "BackupCount", DefaultBackupCount,
             new ConfigDescription(
@@ -80,38 +161,33 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
         bool rootCreated = !Directory.Exists(SpritesPath);
         Directory.CreateDirectory(SpritesPath);
-        foreach (string message in SlotFolders.Migrate(SpritesPath, SlotCount))
-            Log.LogInfo(message);
+
+        if (_layoutVersionSetting.Value < 1)
+        {
+            MigrateLegacyIntoExp();
+            string oldSlot = SlotFolders.Normalize(_activeSlotSetting.Value)
+                             ?? SlotFolders.DefaultFolder;
+            _expSlotSetting.Value = oldSlot;
+            SaveSetting(_expSlotSetting);
+            _layoutVersionSetting.Value = 1;
+            SaveSetting(_layoutVersionSetting);
+        }
 
         EnsureCustomSpritesStructure();
         if (rootCreated)
-            Log.LogInfo("Created CustomSprites folder with slot1..slot9/Body|Head subfolders.");
+            Log.LogInfo("Created CustomSprites with Exp, Milky, and Dune slot folders.");
 
-        string savedSlot = SlotFolders.Normalize(_activeSlotSetting.Value);
-        if (savedSlot != null && CharacterFolderExists(savedSlot))
+        _activeSlot = FolderForSpecies(0);
+        if (!SlotFolders.IsDefault(_activeSlot) && !CharacterFolderExists(_activeSlot, 0))
         {
-            _activeSlot = savedSlot;
-            LoadCharacterSprites(savedSlot);
-        }
-        else if (CharacterFolderExists(SlotFolders.SlotId(1)))
-        {
-            _activeSlot = SlotFolders.SlotId(1);
-            LoadCharacterSprites(_activeSlot);
-        }
-        else
-        {
-            string firstAvailable = FindFirstAvailableCharacter();
-            if (firstAvailable != null)
-            {
-                _activeSlot = firstAvailable;
-                LoadCharacterSprites(firstAvailable);
-            }
-            else
-            {
-                Log.LogWarning("No CustomSprites/slot* folders found! Mod will be inactive.");
-            }
+            // The remembered Exp slot is gone. Start on the stock folder.
+            _activeSlot = SlotFolders.DefaultFolder;
+            _expSlotSetting.Value = _activeSlot;
+            SaveSetting(_expSlotSetting);
         }
 
+        _appliedSpecies = 0;
+        LoadCharacterSprites(_activeSlot, 0);
         SaveActiveSlot(_activeSlot);
 
         var harmony = new Harmony("com.yourname.spritereplacer");
@@ -126,7 +202,13 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         listenerObj.hideFlags = HideFlags.HideAndDontSave;
         listenerObj.AddComponent<InputListener>();
 
-        Log.LogInfo("Sprite Replacer loaded! Numpad 1-9 to switch characters.");
+        Log.LogInfo("Sprite Replacer loaded! Numpad 0 = default, 1-9 = slots.");
+    }
+
+    private static void SaveSetting<T>(ConfigEntry<T> setting)
+    {
+        if (setting != null && setting.ConfigFile != null)
+            setting.ConfigFile.Save();
     }
 
     private void Start()
@@ -141,6 +223,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         SkinMenuUI.EnsureCanvas();
         SkinMenuUI.SetVisible(false);
         KeybindRecovery.Apply();
+        SyncSpeciesCache();
         ApplyToAll();
     }
 
@@ -166,6 +249,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             try
             {
                 MpBody.Tick();
+                SyncSpeciesCache();
                 MpSkinSync.Tick();
             }
             catch (Exception ex)
@@ -203,7 +287,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
         }
     }
 
-    public static bool SwitchToSlot(string slot, bool forceReload = false)
+    public static bool SwitchToSlot(string slot, bool forceReload = false, bool remember = true)
     {
         string normalized = SlotFolders.Normalize(slot);
         if (normalized == null)
@@ -230,35 +314,89 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             return false;
         }
 
-        if (!forceReload && slot == _activeSlot && LoadedSprites.Count > 0)
+        int species = ActiveSpecies;
+        if (!forceReload && slot == _activeSlot && _appliedSpecies == species)
         {
+            if (remember) RememberSpeciesSlot(species, slot);
             SkinMenuUI.RefreshSelection();
             return true;
         }
 
-        if (!CharacterFolderExists(slot))
+        if (!CharacterFolderExists(slot, species))
         {
-            Log.LogWarning("Character folder for " + slot + " not found");
-            return false;
-        }
-
-        if (!SlotSupportsCurrentSpecies(slot))
-        {
-            string species = CurrentSpeciesName() ?? "the current species";
-            SkinMenuUI.ShowStatus("This slot has no " + species + " sprites.", GameTheme.WarningColor);
-            Log.LogInfo("Skin change blocked: slot has no " + species + " sprites.");
+            Log.LogWarning("Character folder for " + SpeciesNames[species] + "/" + slot + " not found");
             return false;
         }
 
         _activeSlot = slot;
+        _appliedSpecies = species;
+        _syncFailed = null;
+        _syncFailedSpecies = -1;
         SaveActiveSlot(slot);
         CoreLibIntegration.StoreActiveSlot(slot);
-        LoadCharacterSprites(slot);
+        LoadCharacterSprites(slot, species);
         ApplyToAll();
         MpSkinSync.OnLocalSkinChanged();
         SkinMenuUI.RefreshSelection();
-        Log.LogInfo("Switched to " + slot);
+        if (remember) RememberSpeciesSlot(species, slot);
+        Log.LogInfo("Switched to " + SpeciesNames[species] + "/" + slot);
         return true;
+    }
+
+    // Loads the saved folder for the local body's species. No body uses Exp.
+    internal static void SyncSpeciesCache()
+    {
+        if (_expSlotSetting == null) return;
+
+        int species = ActiveSpecies;
+        string want = FolderForSpecies(species);
+        if (string.Equals(want, _activeSlot, StringComparison.Ordinal) && _appliedSpecies == species)
+            return;
+
+        // Do not retry a folder that failed for this species. A new import or a
+        // config change clears the guard.
+        if (string.Equals(want, _syncFailed, StringComparison.Ordinal) && _syncFailedSpecies == species)
+            return;
+
+        if (SwitchToSlot(want, true, false))
+        {
+            _syncFailed = null;
+            _syncFailedSpecies = -1;
+            return;
+        }
+
+        _syncFailed = want;
+        _syncFailedSpecies = species;
+
+        if (!SlotFolders.IsDefault(want) && SwitchToSlot(SlotFolders.DefaultFolder, true, false))
+        {
+            _syncFailed = null;
+            _syncFailedSpecies = -1;
+        }
+    }
+
+    internal static void RememberSpeciesSlot(int species, string slot)
+    {
+        ConfigEntry<string> setting = SpeciesSlotSetting(species);
+        if (setting == null) return;
+
+        string normalized = SlotFolders.Normalize(slot);
+        if (normalized == null) return;
+
+        // An import can fill the same remembered slot. Allow a new load attempt.
+        _syncFailed = null;
+        _syncFailedSpecies = -1;
+
+        if (setting.Value == normalized) return;
+
+        setting.Value = normalized;
+        SaveSetting(setting);
+    }
+
+    internal static void ClearSpeciesSyncFailure()
+    {
+        _syncFailed = null;
+        _syncFailedSpecies = -1;
     }
 
     private static void SaveActiveSlot(string slot)
@@ -310,10 +448,18 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     internal static bool CharacterFolderExists(string character)
     {
+        return CharacterFolderExists(character, ActiveSpecies);
+    }
+
+    internal static bool CharacterFolderExists(string character, int species)
+    {
         string normalized = SlotFolders.Normalize(character);
         if (normalized == null) return false;
 
-        string basePath = Path.Combine(SpritesPath, normalized);
+        // The default folder is the stock art. An empty folder still counts.
+        if (SlotFolders.IsDefault(normalized)) return true;
+
+        string basePath = SlotDirectory(normalized, species);
         string bodyPath = Path.Combine(basePath, "Body");
         string headPath = Path.Combine(basePath, "Head");
         // Empty prepared dirs don't count as an available character; need actual png sprites.
@@ -321,67 +467,218 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
                (Directory.Exists(headPath) && Directory.GetFiles(headPath, "*.png").Length > 0);
     }
 
-    internal static bool SlotSupportsCurrentSpecies(string slot)
+    // Older builds kept slot1..slot9 and default next to CustomSprites.
+    // Move them into Exp one time. The root backups folder stays as legacy.
+    private static void MigrateLegacyIntoExp()
     {
-        PlayerCamera camera = PlayerCamera.main;
-        if (camera == null || camera.body == null) return true;
+        string exp = Path.Combine(SpritesPath, SpeciesNames[0]);
+        Directory.CreateDirectory(exp);
 
-        int charType = camera.body.charType;
-        if (charType < 0 || charType > 2) return true;
+        var names = new List<string> { SlotFolders.DefaultFolder, "slot0", "st0" };
+        for (int i = 1; i <= SlotCount; i++)
+        {
+            names.Add(SlotFolders.SlotId(i));
+            names.Add(SlotFolders.LegacySlotId(i));
+        }
 
-        string normalized = SlotFolders.Normalize(slot);
-        if (normalized == null) return false;
+        foreach (string name in names)
+        {
+            string source = Path.Combine(SpritesPath, name);
+            string target = Path.Combine(exp, name);
+            if (!Directory.Exists(source) || Directory.Exists(target)) continue;
 
-        int mask = SkinImporter.DetectSpecies(Path.Combine(SpritesPath, normalized));
-        return (mask & (1 << charType)) != 0;
-    }
-
-    internal static string CurrentSpeciesName()
-    {
-        PlayerCamera camera = PlayerCamera.main;
-        if (camera == null || camera.body == null) return null;
-
-        int charType = camera.body.charType;
-        if (charType < 0 || charType > 2) return null;
-        return SkinImporter.SpeciesLabel(1 << charType);
+            try
+            {
+                Directory.Move(source, target);
+                Log.LogInfo("Moved CustomSprites/" + name + " to Exp.");
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning("Could not move " + source + " to Exp: " + ex.Message);
+            }
+        }
     }
 
     private static void EnsureCustomSpritesStructure()
     {
-        string root = SpritesPath;
-
-        for (int i = 1; i <= SlotCount; i++)
+        for (int species = 0; species < SpeciesNames.Length; species++)
         {
-            string slot = Path.Combine(root, SlotFolders.SlotId(i));
-            Directory.CreateDirectory(Path.Combine(slot, "Body"));
-            Directory.CreateDirectory(Path.Combine(slot, "Head"));
+            string root = SpeciesRoot(species);
+            Directory.CreateDirectory(root);
+
+            foreach (string message in SlotFolders.Migrate(root, SlotCount))
+                Log.LogInfo(message);
+
+            string fallback = Path.Combine(root, SlotFolders.DefaultFolder);
+            Directory.CreateDirectory(Path.Combine(fallback, "Body"));
+            Directory.CreateDirectory(Path.Combine(fallback, "Head"));
+            Directory.CreateDirectory(Path.Combine(fallback, "WoundView"));
+            MergeLegacySlotZeroIntoDefault(root, fallback);
+
+            for (int i = 1; i <= SlotCount; i++)
+            {
+                string slot = Path.Combine(root, SlotFolders.SlotId(i));
+                Directory.CreateDirectory(Path.Combine(slot, "Body"));
+                Directory.CreateDirectory(Path.Combine(slot, "Head"));
+            }
         }
     }
 
-    private static string FindFirstAvailableCharacter()
+    // slot0 / st0 are not custom slots. Fold leftover art into default.
+    private static void MergeLegacySlotZeroIntoDefault(string speciesRoot, string defaultRoot)
     {
-        for (int i = 1; i <= SlotCount; i++)
+        foreach (string legacyName in new[] { "slot0", "st0" })
         {
-            string slot = SlotFolders.SlotId(i);
-            if (CharacterFolderExists(slot))
-                return slot;
+            string legacy = Path.Combine(speciesRoot, legacyName);
+            if (!Directory.Exists(legacy)) continue;
+
+            try
+            {
+                foreach (string subfolder in new[] { "Body", "Head", "WoundView" })
+                {
+                    string source = Path.Combine(legacy, subfolder);
+                    if (!Directory.Exists(source)) continue;
+
+                    string target = Path.Combine(defaultRoot, subfolder);
+                    Directory.CreateDirectory(target);
+                    foreach (string file in Directory.GetFiles(source))
+                    {
+                        string destination = Path.Combine(target, Path.GetFileName(file));
+                        if (!File.Exists(destination))
+                            File.Copy(file, destination, false);
+                    }
+                }
+
+                Directory.Delete(legacy, true);
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning("Could not merge " + legacy + " into default: " + ex.Message);
+            }
         }
-        return null;
     }
 
-    private static void LoadCharacterSprites(string character)
+    private static void LoadCharacterSprites(string character, int species)
     {
         LoadedSprites.Clear();
         ColoredWoundSprites.Clear();
-        LoadSpritesFromFolder(character, "Body");
-        LoadSpritesFromFolder(character, "Head");
-        LoadSpritesFromFolder(character, "WoundView");
-        Log.LogInfo($"Loaded {LoadedSprites.Count} sprites for character {character}");
+
+        string root = SlotDirectory(character, species);
+        LoadSpritesFromFolder(root, "Body");
+        LoadSpritesFromFolder(root, "Head");
+        LoadSpritesFromFolder(root, "WoundView");
+
+        // Species slots often keep experiment* file names. Map them onto the
+        // live names, so one skin set works on a species body.
+        AddSpeciesAliases(LoadedSprites, species);
+
+        Log.LogInfo($"Loaded {LoadedSprites.Count} sprites for {SpeciesNames[species]}/{character}");
     }
 
-    private static void LoadSpritesFromFolder(string character, string subfolder)
+    internal static IReadOnlyDictionary<string, Sprite> WithSpeciesAliases(
+        IReadOnlyDictionary<string, Sprite> sprites, int species)
     {
-        string path = Path.Combine(SpritesPath, character, subfolder);
+        if (sprites == null || species < 1 || species > 2) return sprites;
+
+        var copy = new Dictionary<string, Sprite>(sprites.Count + 32);
+        foreach (KeyValuePair<string, Sprite> pair in sprites)
+            copy[pair.Key] = pair.Value;
+
+        AddSpeciesAliases(copy, species);
+        return copy;
+    }
+
+    internal static void AddSpeciesAliases(IDictionary<string, Sprite> sprites, int species)
+    {
+        if (sprites == null) return;
+
+        if (species == 1)
+        {
+            Alias(sprites, "milkycrus", "experimentCrus");
+            Alias(sprites, "mildownarm", "experimentDownArm");
+            Alias(sprites, "milkydowntorso", "experimentDownTorso");
+            Alias(sprites, "milkyfoot", "experimentFoot");
+            Alias(sprites, "milkyhandb", "experimentHandB");
+            Alias(sprites, "milkyhandf", "experimentHandF");
+            Alias(sprites, "milkytail", "experimentTail");
+            Alias(sprites, "milkythigh", "experimentThigh");
+            Alias(sprites, "milkyuparm", "experimentUpArm");
+            Alias(sprites, "milkytorso", "experimentUpTorso");
+            Alias(sprites, "milkyeyeclosed", "experimentEyeClosed");
+            Alias(sprites, "milkyeyegone", "experimentEyeGone");
+            Alias(sprites, "milkyeyegonehealed", "experimentEyeGoneHealed");
+            Alias(sprites, "milkyeyehalfclosed", "experimentEyeHalfClosed");
+            Alias(sprites, "milkyeyehalfclosedback", "experimentEyeHalfClosedBack");
+            Alias(sprites, "milkyeyehappy", "experimentEyeHappy");
+            Alias(sprites, "milkyeyehappyback", "experimentEyeLookBack");
+            Alias(sprites, "milkyeyelockedin", "experimentEyeLockedIn");
+            Alias(sprites, "milkyeyelockedinback", "experimentEyeLockedInBack");
+            Alias(sprites, "milkyeyeopen", "experimentEyeOpen");
+            Alias(sprites, "milkyeyeopenback", "experimentEyeLookBack");
+            Alias(sprites, "milkyeyepanic", "experimentEyePanic");
+            Alias(sprites, "milkyeyesad", "experimentEyeSad");
+            Alias(sprites, "milkyeyesadback", "experimentEyeSadBack");
+            Alias(sprites, "milkyeyescared", "experimentEyeScared");
+            Alias(sprites, "milkyeyescaredback", "experimentEyeScaredBack");
+            Alias(sprites, "milkyheadback", "experimentHeadBack");
+            Alias(sprites, "milkyheadbackmouthopen", "experimentHeadBackMouth");
+            Alias(sprites, "milkyheadbackmouthhalfopen", "experimentHeadBackMouthMini");
+            Alias(sprites, "milkydisfigure1", "experimentHeadDisfigured1");
+            Alias(sprites, "milkydisfigure1healed", "experimentHeadDisfigured1Healed");
+            Alias(sprites, "milkydisfigure2", "experimentHeadDisfigured2");
+            Alias(sprites, "milkydisfigure2healed", "experimentHeadDisfigured2Healed");
+            Alias(sprites, "milkheadmiddle", "headMiddle");
+            Alias(sprites, "milkheadouter", "headoutline");
+            return;
+        }
+
+        if (species != 2) return;
+
+        Alias(sprites, "duneCrus", "experimentCrus");
+        Alias(sprites, "duneDownArm", "experimentDownArm");
+        Alias(sprites, "duneDownArmAlt", "experimentDownArm");
+        Alias(sprites, "duneDownTorso", "experimentDownTorso");
+        Alias(sprites, "duneFoot", "experimentFoot");
+        Alias(sprites, "duneHand", "experimentHandF");
+        Alias(sprites, "duneHandAlt", "experimentHandB");
+        Alias(sprites, "duneTail", "experimentTail");
+        Alias(sprites, "duneThigh", "experimentThigh");
+        Alias(sprites, "duneThighAlt", "experimentThigh");
+        Alias(sprites, "duneUpArm", "experimentUpArm");
+        Alias(sprites, "duneUpArmAlt", "experimentUpArm");
+        Alias(sprites, "duneUpTorso", "experimentUpTorso");
+        Alias(sprites, "duneEyesClosed", "experimentEyeClosed");
+        Alias(sprites, "duneEyeGone", "experimentEyeGone");
+        Alias(sprites, "duneEyeGoneHealed", "experimentEyeGoneHealed");
+        Alias(sprites, "duneEyesHalfClosed", "experimentEyeHalfClosed");
+        Alias(sprites, "duneEyeHappy", "experimentEyeHappy");
+        Alias(sprites, "duneeyelockedin", "experimentEyeLockedIn");
+        Alias(sprites, "duneEyes", "experimentEyeOpen");
+        Alias(sprites, "duneEyePanic", "experimentEyePanic");
+        Alias(sprites, "duneEyeSad", "experimentEyeSad");
+        Alias(sprites, "duneEyeScared", "experimentEyeScared");
+        Alias(sprites, "duneHeadBack", "experimentHeadBack");
+        Alias(sprites, "duneHeadMouth", "experimentHeadBackMouth");
+        Alias(sprites, "duneHeadMouthHalf", "experimentHeadBackMouthMini");
+        Alias(sprites, "duneDisfigured", "experimentHeadDisfigured1");
+        Alias(sprites, "duneDisfiguredHealed", "experimentHeadDisfigured1Healed");
+        Alias(sprites, "headMiddleDune", "headMiddle");
+        Alias(sprites, "headOuterDune", "headoutline");
+    }
+
+    private static void Alias(IDictionary<string, Sprite> sprites, string liveName, string sourceName)
+    {
+        if (sprites == null || string.IsNullOrEmpty(liveName) || string.IsNullOrEmpty(sourceName))
+            return;
+        if (sprites.ContainsKey(liveName)) return;
+        if (!sprites.TryGetValue(sourceName, out Sprite sprite) || sprite == null) return;
+
+        sprites[liveName] = sprite;
+    }
+
+    private static void LoadSpritesFromFolder(string root, string subfolder)
+    {
+        string path = Path.Combine(root, subfolder);
         if (!Directory.Exists(path)) return;
 
         foreach (string file in Directory.GetFiles(path, "*.png"))
@@ -403,8 +700,6 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
             if (subfolder == "WoundView" && HasColorPixels(tex))
                 ColoredWoundSprites.Add(spriteName);
-
-            Log.LogInfo("Loaded sprite: " + spriteName);
         }
     }
 
@@ -635,6 +930,7 @@ public class PlayerCameraAwakePatch
 {
     static void Postfix()
     {
+        SpriteReplacerPlugin.SyncSpeciesCache();
         WoundViewIntegration.ApplyAll();
     }
 }
