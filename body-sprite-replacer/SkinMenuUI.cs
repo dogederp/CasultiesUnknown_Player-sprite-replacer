@@ -561,19 +561,35 @@ internal static class SkinMenuUI
         GameObject previewObj = new GameObject("Preview");
         previewObj.transform.SetParent(card.transform, false);
         RectTransform previewRect = previewObj.AddComponent<RectTransform>();
-        SetRect(previewRect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -4f), new Vector2(216f, 74f));
+        SetRect(previewRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 14f), new Vector2(216f, 96f));
 
         Image preview = previewObj.AddComponent<Image>();
         preview.sprite = LoadHeadPreview(slot);
         preview.preserveAspect = true;
         preview.color = hasSkin ? Color.white : new Color(1f, 1f, 1f, 0.35f);
 
-        string title = SlotFolders.DisplayName(slot) + (hasSkin ? string.Empty : " (empty)");
-        TextMeshProUGUI label = CreateText(card.transform, "SlotLabel", title, 16,
+        // The slot number sits in the top-left corner. There is no text under
+        // the preview.
+        GameObject numberObj = new GameObject("SlotNumber");
+        numberObj.transform.SetParent(card.transform, false);
+        RectTransform numberRect = numberObj.AddComponent<RectTransform>();
+        SetRect(numberRect, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(6f, -6f), new Vector2(30f, 26f));
+
+        Image numberBackground = numberObj.AddComponent<Image>();
+        numberBackground.color = GameTheme.HeaderColor;
+
+        Outline numberOutline = numberObj.AddComponent<Outline>();
+        numberOutline.effectColor = GameTheme.BorderColor;
+        numberOutline.effectDistance = new Vector2(1f, -1f);
+        numberOutline.useGraphicAlpha = false;
+
+        TextMeshProUGUI numberLabel = CreateText(numberObj.transform, "Number",
+            (SlotFolders.Index(slot) + 1).ToString(), 16,
             hasSkin ? GameTheme.TextColor : GameTheme.MutedColor, TextAlignmentOptions.Center);
-        SetRect(label.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -84f), new Vector2(216f, 24f));
+        SetRect(numberLabel.rectTransform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
 
         Button select = CreateButton(card.transform, "Select", "Select", GameTheme.TextColor, 16);
         SetRect(select.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
