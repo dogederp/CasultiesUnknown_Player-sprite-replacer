@@ -25,6 +25,7 @@ Use this form or the Nexus bugs tab. Do not report bugs in the mod comments.
 - Casualties Together version (multiplayer only):
 - BepInEx version:
 - Operating system:
+- Using Casualties Together: Yes / No
 
 ## What happened
 
