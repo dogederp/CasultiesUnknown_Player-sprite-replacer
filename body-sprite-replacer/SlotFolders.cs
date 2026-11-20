@@ -3,38 +3,59 @@ using System.Collections.Generic;
 using System.IO;
 
 // Slot folder names use the form "slot1" to "slot9". Old "st1" to "st9"
-// names still work and are renamed on startup.
+// names still work and are renamed on startup. "default" is slot 0: the
+// stock art, not a custom slot.
 internal static class SlotFolders
 {
+    internal const string DefaultFolder = "default";
+
     internal static string SlotId(int index)
     {
+        if (index < 1 || index > 9) return null;
         return "slot" + index;
     }
 
     internal static string LegacySlotId(int index)
     {
+        if (index < 1 || index > 9) return null;
         return "st" + index;
     }
 
-    // Returns the 0-based slot index, or -1 when the name is not a slot.
+    // True for "default", "slot0", "st0", and "0". These all mean slot 0.
+    internal static bool IsDefault(string slot)
+    {
+        if (string.IsNullOrEmpty(slot)) return false;
+
+        return string.Equals(slot, DefaultFolder, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(slot, "slot0", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(slot, "st0", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(slot, "0", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Returns the 0-based slot index, or -1 when the name is not a custom slot.
     internal static int Index(string slot)
     {
-        if (string.IsNullOrEmpty(slot)) return -1;
+        if (string.IsNullOrEmpty(slot) || IsDefault(slot)) return -1;
 
         int number = ParseNumber(slot, "slot");
         if (number < 0) number = ParseNumber(slot, "st");
         return number < 0 ? -1 : number - 1;
     }
 
-    // Maps "st3" and "slot3" to "slot3". Returns null for any other value.
+    // Maps "st3", "slot3", and "default" to their folder names.
+    // Returns null for any other value.
     internal static string Normalize(string slot)
     {
+        if (IsDefault(slot)) return DefaultFolder;
+
         int index = Index(slot);
         return index < 0 ? null : SlotId(index + 1);
     }
 
     internal static string DisplayName(string slot)
     {
+        if (IsDefault(slot)) return "Default";
+
         int index = Index(slot);
         return index < 0 ? slot : "Slot " + (index + 1);
     }

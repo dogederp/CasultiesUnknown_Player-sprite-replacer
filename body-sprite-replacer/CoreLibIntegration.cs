@@ -50,15 +50,20 @@ internal static class CoreLibIntegration
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void RegisterCoreLib()
     {
-        ModDropdownChoice[] choices = Enumerable.Range(1, SpriteReplacerPlugin.SlotCount)
-            .Select(i => new ModDropdownChoice(SlotFolders.SlotId(i), "Slot " + i))
-            .ToArray();
+        var choiceList = new List<ModDropdownChoice>
+        {
+            new ModDropdownChoice(SlotFolders.DefaultFolder, "Default")
+        };
+        for (int i = 1; i <= SpriteReplacerPlugin.SlotCount; i++)
+            choiceList.Add(new ModDropdownChoice(SlotFolders.SlotId(i), "Slot " + i));
 
-        int defaultIndex = Math.Max(0, SlotFolders.Index(SpriteReplacerPlugin.ActiveSlot));
+        ModDropdownChoice[] choices = choiceList.ToArray();
+
+        int defaultIndex = DropdownIndex(SpriteReplacerPlugin.ActiveSlot);
         ModOptionDefinition slotOption = ModOptionDefinition.Dropdown(
             SlotOptionId,
             "Active slot",
-            "Select the CustomSprites slot to use. This choice stays local.",
+            "Select the CustomSprites folder to use. This choice stays local.",
             "Skin Replacer",
             defaultIndex,
             choices,
@@ -174,7 +179,7 @@ internal static class CoreLibIntegration
         {
             if (Settings.settings == null) return;
 
-            int index = Math.Max(0, SlotFolders.Index(slot));
+            int index = DropdownIndex(slot);
             foreach (Setting setting in Settings.settings)
             {
                 if (!(setting is SettingDropdown dropdown)) continue;
@@ -224,10 +229,25 @@ internal static class CoreLibIntegration
 
     private static void OnDropdownChanged(int index)
     {
-        string slot = SlotFolders.SlotId(index + 1);
+        string slot = DropdownSlot(index);
+        if (slot == null) return;
+
         if (SpriteReplacerPlugin.SwitchToSlot(slot)) return;
 
         // The switch was blocked by a lock or a cooldown. Show the slot in use.
         StoreActiveSlot(SpriteReplacerPlugin.ActiveSlot);
+    }
+
+    // Dropdown index 0 is default. Slot 1 to 9 use index 1 to 9.
+    private static int DropdownIndex(string slot)
+    {
+        int index = SlotFolders.Index(slot);
+        return index < 0 ? 0 : index + 1;
+    }
+
+    private static string DropdownSlot(int index)
+    {
+        if (index <= 0) return SlotFolders.DefaultFolder;
+        return SlotFolders.SlotId(index);
     }
 }

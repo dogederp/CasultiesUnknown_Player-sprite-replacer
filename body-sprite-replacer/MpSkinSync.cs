@@ -96,6 +96,13 @@ internal static class MpSkinSync
         _resend = false;
         if (SkinLock.CanChangeOnce)
             _manualChoice = true;
+
+        // default is the stock art. Drop the shared zip, so peers go back to stock.
+        if (MpBody.IsActive && SpriteReplacerPlugin.IsDefaultSlot(SpriteReplacerPlugin.ActiveSlot))
+        {
+            _lastSharedSlot = null;
+            ClearLocalSkin();
+        }
     }
 
     internal static void OnLockChanged()
@@ -119,7 +126,7 @@ internal static class MpSkinSync
         {
             _localSent = false;
             _resend = !string.IsNullOrEmpty(_lastSharedSlot) &&
-                      string.Equals(_lastSharedSlot, SpriteReplacerPlugin.ActiveSlot,
+                      string.Equals(_lastSharedSlot, LocalSkinKey(),
                           StringComparison.Ordinal);
             return;
         }
@@ -211,16 +218,23 @@ internal static class MpSkinSync
 
         if (!MpBody.TryGetLocalIds(out uint localNetwork, out uint localPlayer)) return;
 
-        string signature = SpriteReplacerPlugin.ActiveSlot + ":" + SpriteReplacerPlugin.LoadedSprites.Count;
+        string signature = LocalSkinKey() + ":" + SpriteReplacerPlugin.LoadedSprites.Count;
         if (!string.Equals(signature, _signature, StringComparison.Ordinal))
         {
             _signature = signature;
             _localSent = false;
         }
 
-        if (_resend && !string.Equals(_lastSharedSlot, SpriteReplacerPlugin.ActiveSlot,
+        if (_resend && !string.Equals(_lastSharedSlot, LocalSkinKey(),
                 StringComparison.Ordinal))
             _resend = false;
+
+        // default is the stock art. Never upload it.
+        if (SpriteReplacerPlugin.IsDefaultSlot(SpriteReplacerPlugin.ActiveSlot))
+        {
+            _localSent = true;
+            _resend = false;
+        }
 
         if (!_localSent && !IsCoolingDown && SpriteReplacerPlugin.ShareSkins &&
             (SkinLock.CanChangeLocal || _resend))
@@ -254,7 +268,7 @@ internal static class MpSkinSync
                 {
                     _localSent = true;
                     _resend = false;
-                    _lastSharedSlot = SpriteReplacerPlugin.ActiveSlot;
+                    _lastSharedSlot = LocalSkinKey();
                     SkinLock.HadLocalSkin = true;
                 }
                 else package.Dispose();
@@ -279,7 +293,7 @@ internal static class MpSkinSync
                 {
                     if (pair.Key == localNetwork) continue;
                     uint player = PlayerIds.TryGetValue(pair.Key, out uint id) ? id : 0;
-                    MpBody.ApplyRemoteSkin(pair.Key, player, pair.Value.Sprites);
+                    MpBody.ApplyRemoteSkin(pair.Key, player, pair.Value.Sprites, pair.Value.Species);
                 }
             }
         }
@@ -423,7 +437,7 @@ internal static class MpSkinSync
 
             Store(ownerNetwork, ownerPlayer, package);
             if (SpriteReplacerPlugin.DownloadSkins)
-                MpBody.ApplyRemoteSkin(ownerNetwork, ownerPlayer, package.Sprites);
+                MpBody.ApplyRemoteSkin(ownerNetwork, ownerPlayer, package.Sprites, package.Species);
             MultiplayerApi.Broadcast(ApplyChannel, payload, false, true);
 
             Log("stored skin from client " + ownerNetwork + " player " + ownerPlayer
@@ -470,7 +484,8 @@ internal static class MpSkinSync
                     ["clientId"] = pair.Key,
                     ["playerId"] = player,
                     ["hash"] = pair.Value.Hash,
-                    ["setName"] = pair.Value.SetName
+                    ["setName"] = pair.Value.SetName,
+                    ["species"] = pair.Value.Species
                 });
             }
 
@@ -636,6 +651,7 @@ internal static class MpSkinSync
                 uint player = ReadUInt(item, "playerId");
                 string hash = item.Value<string>("hash") ?? string.Empty;
                 string setName = item.Value<string>("setName") ?? string.Empty;
+                int species = ReadSpecies(item);
                 if (owner == 0 || owner == localNetwork || !MpSkinCache.IsHash(hash)) continue;
 
                 if (Skins.TryGetValue(owner, out MpSkinPackage existing) &&
@@ -647,6 +663,7 @@ internal static class MpSkinSync
                     MpSkinPackage package = MpSkinPackage.FromZip(zip, hash, setName);
                     if (package != null)
                     {
+                        package.Species = species;
                         Store(owner, player, package);
                         cached++;
                         continue;
@@ -756,7 +773,23 @@ internal static class MpSkinSync
             return null;
         }
 
-        return MpSkinPackage.FromZip(zip, hash, setName);
+        MpSkinPackage package = MpSkinPackage.FromZip(zip, hash, setName);
+        if (package != null)
+            package.Species = ReadSpecies(payload);
+
+        return package;
+    }
+
+    private static int ReadSpecies(JObject payload)
+    {
+        JToken token = payload == null ? null : payload["species"];
+        int species = token == null ? 0 : token.Value<int>();
+        return species >= 0 && species <= 2 ? species : 0;
+    }
+
+    private static string LocalSkinKey()
+    {
+        return SpriteReplacerPlugin.ActiveSpecies + ":" + SpriteReplacerPlugin.ActiveSlot;
     }
 
     private static bool SendToServer(MpSkinPackage package, uint localNetwork, uint localPlayer)
@@ -852,7 +885,7 @@ internal static class MpSkinSync
 
             MpSkinPackage package = Pending[owner];
             uint player = PlayerIds.TryGetValue(owner, out uint id) ? id : 0;
-            if (MpBody.ApplyRemoteSkin(owner, player, package.Sprites))
+            if (MpBody.ApplyRemoteSkin(owner, player, package.Sprites, package.Species))
             {
                 Pending.Remove(owner);
                 Waiting.Remove(owner);
@@ -871,6 +904,7 @@ internal static class MpSkinSync
             ["clientId"] = ownerNetwork,
             ["playerId"] = ownerPlayer,
             ["setName"] = package.SetName,
+            ["species"] = package.Species,
             ["hash"] = package.Hash,
             ["zip"] = Convert.ToBase64String(package.Zip)
         };

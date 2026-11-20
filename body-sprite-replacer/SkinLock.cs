@@ -47,6 +47,7 @@ internal static class SkinLock
         {
             Announce(locked);
             MpSkinSync.OnLockChanged();
+            SpriteReplacerPlugin.ClearSpeciesSyncFailure();
         }
 
         try
@@ -75,7 +76,10 @@ internal static class SkinLock
         bool changed = State.ApplyRemote(lockedToken.Value<bool>(), allow);
 
         if (changed)
+        {
             Announce(IsLocked);
+            SpriteReplacerPlugin.ClearSpeciesSyncFailure();
+        }
 
         if (CanChangeOnce)
             SkinMenuUI.OpenPopupForChoice();
@@ -110,6 +114,7 @@ internal static class SkinLock
 
     internal static void Reset()
     {
+        SpriteReplacerPlugin.ClearSpeciesSyncFailure();
         if (!State.IsLocked && !State.HasLocalSkin && !State.CanChangeOnce) return;
 
         State.Reset();

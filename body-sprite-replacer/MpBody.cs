@@ -91,6 +91,8 @@ internal static class MpBody
         _nextRefresh = Time.unscaledTime + 1f;
 
         Refresh();
+        // The species cache picks the folder before the binding runs.
+        SpriteReplacerPlugin.SyncSpeciesCache();
         if (!_needsApply) return;
 
         _needsApply = false;
@@ -265,7 +267,7 @@ internal static class MpBody
     }
 
     internal static bool ApplyRemoteSkin(uint networkClientId, uint playerId,
-        IReadOnlyDictionary<string, Sprite> sprites)
+        IReadOnlyDictionary<string, Sprite> sprites, int species = -1)
     {
         if (!IsActive || sprites == null) return false;
         if (_localBody == null) Refresh();
@@ -282,7 +284,9 @@ internal static class MpBody
         if (binding == null)
             binding = body.gameObject.AddComponent<BodySkinBinding>();
 
-        binding.Bind(body, sprites);
+        // A species slot can hold experiment names. Map them to the live names
+        // that the sender's body species uses.
+        binding.Bind(body, SpriteReplacerPlugin.WithSpeciesAliases(sprites, species));
         LogDebug("Applied remote skin: network=" + networkClientId + " player=" + playerId);
         return true;
     }

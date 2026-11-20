@@ -11,6 +11,7 @@ using UnityEngine;
 internal sealed class MpSkinPackage
 {
     internal string SetName;
+    internal int Species;
     internal string Hash;
     internal string ContentHash;
     internal byte[] Zip;
@@ -19,7 +20,10 @@ internal sealed class MpSkinPackage
 
     internal static MpSkinPackage FromSlot(string slot)
     {
-        string root = Path.Combine(SpriteReplacerPlugin.SpritesPath, slot);
+        // default is the stock art. It is never uploaded.
+        if (SlotFolders.IsDefault(slot)) return null;
+
+        string root = SpriteReplacerPlugin.SlotDirectory(slot);
         if (!Directory.Exists(root)) return null;
 
         using var memory = new MemoryStream();
@@ -38,6 +42,7 @@ internal sealed class MpSkinPackage
         return new MpSkinPackage
         {
             SetName = SlotFolders.DisplayName(slot),
+            Species = SpriteReplacerPlugin.ActiveSpecies,
             Hash = HashHex(bytes),
             ContentHash = Hex(content.Hash),
             Zip = bytes
