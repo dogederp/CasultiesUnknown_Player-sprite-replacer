@@ -84,9 +84,14 @@ internal sealed class MpSkinPackage
                 if (folder != "Body" && folder != "Head") continue;
 
                 string name = Path.GetFileNameWithoutExtension(parts[1]);
+                string baseName = SideSprites.BaseName(name);
                 HashSet<string> known = folder == "Body" ? SkinImporter.BodyNames : SkinImporter.HeadNames;
-                if (!known.Contains(name)) continue;
-                if (package.Sprites.ContainsKey(name)) continue;
+                if (!known.Contains(baseName)) continue;
+
+                string key = SideSprites.TryParse(name, out string parsedBase, out bool isRight)
+                    ? SideSprites.Key(parsedBase, isRight)
+                    : name;
+                if (package.Sprites.ContainsKey(key)) continue;
                 if (!MpSkinRules.EntrySizeOk(entry.Length)) return Reject(package);
 
                 total += (int)entry.Length;
@@ -126,9 +131,9 @@ internal sealed class MpSkinPackage
                 Sprite sprite = Sprite.Create(texture,
                     new Rect(0, 0, texture.width, texture.height),
                     new Vector2(0.5f, 0.5f), 8f);
-                sprite.name = name;
+                sprite.name = baseName;
 
-                package.Sprites[name] = sprite;
+                package.Sprites[key] = sprite;
                 package.Textures.Add(texture);
             }
         }
@@ -178,7 +183,7 @@ internal sealed class MpSkinPackage
         foreach (string file in files)
         {
             string name = Path.GetFileNameWithoutExtension(file);
-            if (!names.Contains(name)) continue;
+            if (!names.Contains(SideSprites.BaseName(name))) continue;
 
             byte[] data = File.ReadAllBytes(file);
             string entryName = entryFolder + "/" + Path.GetFileName(file);

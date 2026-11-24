@@ -13,8 +13,8 @@ A mod for Casualties Unknown that swaps player body/head sprites at runtime usin
 ## Compatibility
 
 - Loader: **BepInEx 5.4.23.5**
-- Game version: **Full game v1.0.0**
-- Optional: **CUCoreLib 1.0.6.1 or newer** for the in-game settings tab and multiplayer. Multiplayer also needs **Casualties Together 5.2.0**. The single-player skin selector works without CUCoreLib.
+- Game version: **1.0.2**
+- Optional: **CUCoreLib 1.0.6.1 or newer** for the in-game settings tab and multiplayer. Multiplayer also needs **Casualties Together 5.5.4**. The single-player skin selector works without CUCoreLib.
 
 ## About This Project
 
@@ -26,7 +26,7 @@ A mod for Casualties Unknown that swaps player body/head sprites at runtime usin
 
 1. Open this repository's `body-sprite-replacer/plugins` folder.
 2. Drag/copy its contents into your game's BepInEx `plugins` folder.
-3. Optional for single-player, required for multiplayer: copy `CUCoreLib.dll` into the same folder. For multiplayer, also install **Casualties Together 5.2.0**.
+3. Optional for single-player, required for multiplayer: copy `CUCoreLib.dll` into the same folder. For multiplayer, also install **Casualties Together 5.5.4**.
 4. Start the game.
 
 ### If BepInEx is not installed yet
@@ -51,7 +51,7 @@ A mod for Casualties Unknown that swaps player body/head sprites at runtime usin
 
 ### Multiplayer
 
-- Multiplayer uses **Casualties Together 5.2.0** and **CUCoreLib 1.0.6.1** or newer.
+- Multiplayer uses **Casualties Together 5.5.4** and **CUCoreLib 1.0.6.1** or newer.
 - Each player keeps their own species page and slot. The mod shares the chosen skin with the other clients. The host does not change your local choice.
 - A client that joins after the game loads receives the skins already in the session.
 - `default` is stock art. The mod never uploads or applies it as a shared skin.
@@ -63,7 +63,7 @@ A mod for Casualties Unknown that swaps player body/head sprites at runtime usin
 - **Share** off removes your skin from the session. **Download** off restores remote bodies and stops new remote skins.
 - Remote skins are cached in `BepInEx/plugins/CustomSprites/mp_cache`. A cached skin is not sent again. The cache keeps 64 MB or 32 skins by default. Set `MaxSkinCacheMB` in the BepInEx config to change the size.
 - The host can lock skins from the skin menu. A locked client cannot change. A client that joins while locked gets one change. Turning Share off and on does not grant a new change.
-- If the host leaves, the session ends. Host migration is not available in Casualties Together 5.2.0.
+- If the host leaves, the session ends. Host migration is not available in Casualties Together 5.5.4.
 - The active slot, share, and download settings are local to each player. The CUCoreLib tab has the backup count and the local Active slot dropdown.
 - The WoundView stays local.
 - Disable ChangeSkinMP and other skin mods before you use this mod in multiplayer.
@@ -94,7 +94,25 @@ The mod does not create a pause and does not change the time scale.
 
 1. Back up your current `CustomSprites/Exp/slot1/Body` and `CustomSprites/Exp/slot1/Head` folders (or any other slot folder under `Exp`, `Milky`, or `Dune`) first.
 2. Edit the images in those folders.
-3. Keep the same dimensions/image sizes as the originals. Do not change the file names.
+3. Keep the same dimensions/image sizes as the originals. Keep the shared file names.
+
+### Side sprites
+
+You can show a different sprite for each facing direction. Copy a sprite and add `_left` or `_right` to the file name:
+
+```text
+Body/
+  experimentUpTorso.png          shared sprite, used when no side sprite exists
+  experimentUpTorso_left.png     shown when the player faces left
+  experimentUpTorso_right.png    shown when the player faces right
+```
+
+- `_left` means facing left. It does not mean the left arm.
+- A missing side sprite falls back to the shared sprite. A skin with no side sprites behaves as before.
+- Draw each side sprite as it appears on screen. The mod cancels the game's body mirror for a side sprite.
+- The suffix works in `Body` and `Head`. The `WoundView` folder keeps the plain names.
+- The slot preview uses the shared head sprite. The side art shows in the game.
+- Add side sprites to a slot, not to `default`. The import keeps the suffix.
 
 A different image size is allowed. The mod shows a warning, and the sprite can look larger or smaller in the game.
 

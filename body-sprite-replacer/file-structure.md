@@ -79,4 +79,17 @@ Each slot can hold a `Body`, a `Head`, and an optional `WoundView` folder.
 - `Head` holds the head, eye, and face sprites.
 - `WoundView` holds the art for the health screen.
 
+### Side sprite files
+
+A `Body` or `Head` PNG can have a `_left` or a `_right` suffix. The suffix selects the facing direction:
+
+```text
+Body/
+  experimentUpTorso.png
+  experimentUpTorso_left.png
+  experimentUpTorso_right.png
+```
+
+A missing side file falls back to the file without a suffix. A skin with no side files works as before. `WoundView` does not use the suffix. The import copies the suffix and keeps the shared name as the sprite name.
+
 `CustomSprites/BaseSprites_woundview/BaseSprites` is a reference folder. The mod does not load it.
