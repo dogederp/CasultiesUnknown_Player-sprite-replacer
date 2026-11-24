@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System;
 
-[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "2.1.0")]
+[BepInPlugin("com.yourname.spritereplacer", "Sprite Replacer", "2.2.0")]
 [BepInDependency("net.cucorelib", BepInDependency.DependencyFlags.SoftDependency)]
 public class SpriteReplacerPlugin : BaseUnityPlugin
 {
@@ -668,6 +668,13 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     private static void Alias(IDictionary<string, Sprite> sprites, string liveName, string sourceName)
     {
+        AliasOne(sprites, liveName, sourceName);
+        AliasOne(sprites, liveName + SideSprites.LeftSuffix, sourceName + SideSprites.LeftSuffix);
+        AliasOne(sprites, liveName + SideSprites.RightSuffix, sourceName + SideSprites.RightSuffix);
+    }
+
+    private static void AliasOne(IDictionary<string, Sprite> sprites, string liveName, string sourceName)
+    {
         if (sprites == null || string.IsNullOrEmpty(liveName) || string.IsNullOrEmpty(sourceName))
             return;
         if (sprites.ContainsKey(liveName)) return;
@@ -683,7 +690,19 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
         foreach (string file in Directory.GetFiles(path, "*.png"))
         {
-            string spriteName = Path.GetFileNameWithoutExtension(file);
+            string fileName = Path.GetFileNameWithoutExtension(file);
+            string spriteName = fileName;
+            string key = fileName;
+
+            // Only the body and the head use the side suffix. The wound view
+            // keeps its plain names.
+            bool sideFolder = subfolder == "Body" || subfolder == "Head";
+            if (sideFolder && SideSprites.TryParse(fileName, out string baseName, out bool isRight))
+            {
+                spriteName = baseName;
+                key = SideSprites.Key(baseName, isRight);
+            }
+
             byte[] data = File.ReadAllBytes(file);
             Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             tex.filterMode = FilterMode.Point;
@@ -696,7 +715,7 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
             Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 8f);
             sprite.name = spriteName;
-            LoadedSprites[spriteName] = sprite;
+            LoadedSprites[key] = sprite;
 
             if (subfolder == "WoundView" && HasColorPixels(tex))
                 ColoredWoundSprites.Add(spriteName);
@@ -713,6 +732,40 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
             if (p.r != p.g || p.g != p.b) return true;
         }
         return false;
+    }
+
+    // Reads the side sprite for the current facing. A missing side file falls
+    // back to the shared file. The returned sprite keeps the base name, so the
+    // next direction change can find the other side.
+    internal static bool TryGetSprite(IReadOnlyDictionary<string, Sprite> sprites, string name,
+        Body body, out Sprite sprite, out bool side)
+    {
+        sprite = null;
+        side = false;
+        if (sprites == null || string.IsNullOrEmpty(name)) return false;
+
+        if (body != null && sprites.TryGetValue(SideSprites.Key(name, body.isRight), out sprite))
+        {
+            side = true;
+            return true;
+        }
+
+        return sprites.TryGetValue(name, out sprite);
+    }
+
+    // The game mirrors the body with a negative X scale. A side sprite is
+    // drawn as it appears on screen, so flip it in local space to cancel the
+    // body mirror.
+    internal static bool IsMirrored(Body body)
+    {
+        return body != null && body.transform.lossyScale.x < 0f;
+    }
+
+    internal static void ApplySideFlip(SpriteRenderer renderer, bool side, Body body)
+    {
+        if (renderer == null) return;
+        bool flip = side && IsMirrored(body);
+        if (renderer.flipX != flip) renderer.flipX = flip;
     }
 
     internal static Sprite LoadEmbeddedSprite(string resourceName)
@@ -769,79 +822,139 @@ public class SpriteReplacerPlugin : BaseUnityPlugin
 
     public static void ApplyReplacement(Limb limb)
     {
-        if (!MpBody.CanApply(limb.body)) return;
+        if (limb == null) return;
+        Body body = limb.body;
+        EnsureDirectionWatcher(body);
+        if (!MpBody.CanApply(body)) return;
 
         SpriteRenderer sr = limb.GetComponent<SpriteRenderer>();
         if (sr != null && sr.sprite != null)
         {
             DefaultSpriteExport.Capture(sr.sprite);
 
-            if (LoadedSprites.TryGetValue(sr.sprite.name, out Sprite replacement))
+            if (TryGetSprite(LoadedSprites, sr.sprite.name, body, out Sprite replacement, out bool side))
                 sr.sprite = replacement;
+
+            ApplySideFlip(sr, side, body);
         }
     }
 
     public static void ApplyReplacementToTail(TailScript tail)
     {
-        if (!MpBody.CanApply(tail.GetComponentInParent<Body>())) return;
+        if (tail == null) return;
+        Body body = tail.GetComponentInParent<Body>();
+        EnsureDirectionWatcher(body);
+        if (!MpBody.CanApply(body)) return;
 
         SpriteRenderer sr = tail.GetComponent<SpriteRenderer>();
         if (sr != null && sr.sprite != null)
         {
             DefaultSpriteExport.Capture(sr.sprite);
 
-            if (LoadedSprites.TryGetValue(sr.sprite.name, out Sprite replacement))
+            if (TryGetSprite(LoadedSprites, sr.sprite.name, body, out Sprite replacement, out bool side))
                 sr.sprite = replacement;
+
+            ApplySideFlip(sr, side, body);
         }
     }
 
     public static void ApplyReplacementToFace(FacialExpression face)
     {
-        if (!MpBody.CanApply(face.body)) return;
-        face.defaultHead = ReplaceSprite(face.defaultHead);
-        face.defaultHeadMouth = ReplaceSprite(face.defaultHeadMouth);
-        face.defaultHeadMouthHalf = ReplaceSprite(face.defaultHeadMouthHalf);
-        face.eyesGone = ReplaceSprite(face.eyesGone);
-        face.eyesGoneHealed = ReplaceSprite(face.eyesGoneHealed);
+        if (face == null) return;
+        Body body = face.body;
+        EnsureDirectionWatcher(body);
+        if (!MpBody.CanApply(body)) return;
+        face.defaultHead = ReplaceSprite(face.defaultHead, body);
+        face.defaultHeadMouth = ReplaceSprite(face.defaultHeadMouth, body);
+        face.defaultHeadMouthHalf = ReplaceSprite(face.defaultHeadMouthHalf, body);
+        face.eyesGone = ReplaceSprite(face.eyesGone, body);
+        face.eyesGoneHealed = ReplaceSprite(face.eyesGoneHealed, body);
 
         if (face.nosebleedSprite != null)
         {
             DefaultSpriteExport.Capture(face.nosebleedSprite.sprite);
-
-            SkinSpriteReplacer replacer = face.nosebleedSprite.GetComponent<SkinSpriteReplacer>();
-            if (replacer == null)
-            {
-                replacer = SkinSpriteReplacer.Attach(face.nosebleedSprite, LoadedSprites);
-                replacer.Apply();
-            }
-            else
-            {
-                replacer.SetSprites(LoadedSprites);
-            }
+            EnsureReplacer(face.nosebleedSprite, body);
         }
 
+        // The head and the eyes are assigned every frame. A replacer on each
+        // renderer maps that frame's sprite and sets the side flip.
+        EnsureReplacer(face.head, body);
+        EnsureReplacer(face.eyes, body);
+
         for (int i = 0; i < face.disfiguredHead.Length; i++)
-            face.disfiguredHead[i] = ReplaceSprite(face.disfiguredHead[i]);
+            face.disfiguredHead[i] = ReplaceSprite(face.disfiguredHead[i], body);
 
         for (int i = 0; i < face.disfiguredHeadHeal.Length; i++)
-            face.disfiguredHeadHeal[i] = ReplaceSprite(face.disfiguredHeadHeal[i]);
+            face.disfiguredHeadHeal[i] = ReplaceSprite(face.disfiguredHeadHeal[i], body);
 
         for (int i = 0; i < face.eyeList.Count; i++)
         {
             Eye eye = face.eyeList[i];
-            eye.front = ReplaceSprite(eye.front);
-            eye.back = ReplaceSprite(eye.back);
+            eye.front = ReplaceSprite(eye.front, body);
+            eye.back = ReplaceSprite(eye.back, body);
             face.eyeList[i] = eye;
         }
     }
 
-    private static Sprite ReplaceSprite(Sprite s)
+    private static void EnsureReplacer(SpriteRenderer renderer, Body body)
+    {
+        if (renderer == null) return;
+
+        DefaultSpriteExport.Capture(renderer.sprite);
+
+        SkinSpriteReplacer replacer = renderer.GetComponent<SkinSpriteReplacer>();
+        if (replacer == null)
+        {
+            replacer = SkinSpriteReplacer.Attach(renderer, LoadedSprites, body);
+            replacer.Apply();
+        }
+        else
+        {
+            replacer.SetSprites(LoadedSprites, body);
+        }
+    }
+
+    private static Sprite ReplaceSprite(Sprite s, Body body)
     {
         DefaultSpriteExport.Capture(s);
 
-        if (s != null && LoadedSprites.TryGetValue(s.name, out Sprite r))
+        if (s != null && TryGetSprite(LoadedSprites, s.name, body, out Sprite r, out _))
             return r;
         return s;
+    }
+
+    // The game flips the body scale in SwitchDir. A direction change must
+    // re-read the side for every part of that body.
+    internal static void OnBodyDirectionChanged(Body body)
+    {
+        if (body == null) return;
+
+        BodySkinBinding binding = body.GetComponent<BodySkinBinding>();
+        if (binding != null)
+        {
+            binding.Apply();
+            return;
+        }
+
+        if (!MpBody.CanApply(body)) return;
+
+        foreach (Limb limb in body.GetComponentsInChildren<Limb>(true))
+            ApplyReplacement(limb);
+        foreach (TailScript tail in body.GetComponentsInChildren<TailScript>(true))
+            ApplyReplacementToTail(tail);
+        foreach (FacialExpression face in body.GetComponentsInChildren<FacialExpression>(true))
+            ApplyReplacementToFace(face);
+    }
+
+    internal static void EnsureDirectionWatcher(Body body)
+    {
+        if (body == null) return;
+
+        SkinDirectionWatcher watcher = body.GetComponent<SkinDirectionWatcher>();
+        if (watcher == null)
+            watcher = body.gameObject.AddComponent<SkinDirectionWatcher>();
+
+        watcher.Bind(body);
     }
 }
 

@@ -11,9 +11,10 @@ public sealed class SkinSpriteReplacer : MonoBehaviour
     public Sprite Original { get; private set; }
     public bool Active { get; private set; }
     public IReadOnlyDictionary<string, Sprite> Sprites { get; private set; }
+    public Body Body { get; private set; }
 
     public static SkinSpriteReplacer Attach(SpriteRenderer renderer,
-        IReadOnlyDictionary<string, Sprite> sprites)
+        IReadOnlyDictionary<string, Sprite> sprites, Body body = null)
     {
         SkinSpriteReplacer replacer = renderer.GetComponent<SkinSpriteReplacer>();
         if (replacer == null)
@@ -26,12 +27,14 @@ public sealed class SkinSpriteReplacer : MonoBehaviour
 
         replacer.Renderer = renderer;
         replacer.Sprites = sprites;
+        replacer.Body = body;
         return replacer;
     }
 
-    public void SetSprites(IReadOnlyDictionary<string, Sprite> sprites)
+    public void SetSprites(IReadOnlyDictionary<string, Sprite> sprites, Body body)
     {
         Sprites = sprites;
+        Body = body;
         Apply();
     }
 
@@ -40,15 +43,46 @@ public sealed class SkinSpriteReplacer : MonoBehaviour
         Active = true;
         if (Renderer == null) return;
         if (Original != null) Renderer.sprite = Original;
-        if (Renderer.sprite == null || Sprites == null) return;
-        if (Sprites.TryGetValue(Renderer.sprite.name, out Sprite replacement))
+        if (Renderer.sprite == null || Sprites == null)
+        {
+            SpriteReplacerPlugin.ApplySideFlip(Renderer, false, Body);
+            return;
+        }
+
+        if (SpriteReplacerPlugin.TryGetSprite(Sprites, Renderer.sprite.name, Body,
+            out Sprite replacement, out bool side))
+        {
             Renderer.sprite = replacement;
+        }
+
+        SpriteReplacerPlugin.ApplySideFlip(Renderer, side, Body);
+    }
+
+    internal bool TryMap(Sprite value, out Sprite result)
+    {
+        result = value;
+        if (!Active || value == null || Sprites == null) return false;
+
+        if (!SpriteReplacerPlugin.TryGetSprite(Sprites, value.name, Body,
+            out Sprite replacement, out bool side))
+        {
+            SpriteReplacerPlugin.ApplySideFlip(Renderer, false, Body);
+            return false;
+        }
+
+        result = replacement;
+        SpriteReplacerPlugin.ApplySideFlip(Renderer, side, Body);
+        return true;
     }
 
     public void Restore()
     {
         Active = false;
-        if (Renderer != null) Renderer.sprite = Original;
+        if (Renderer != null)
+        {
+            SpriteReplacerPlugin.ApplySideFlip(Renderer, false, Body);
+            Renderer.sprite = Original;
+        }
     }
 
     private void OnDestroy() => Restore();
@@ -63,7 +97,7 @@ internal static class SkinSpritePatch
 
         SkinSpriteReplacer replacer = __instance.GetComponent<SkinSpriteReplacer>();
         if (replacer == null || !replacer.Active || value == null || replacer.Sprites == null) return;
-        if (replacer.Sprites.TryGetValue(value.name, out Sprite replacement))
+        if (replacer.TryMap(value, out Sprite replacement))
             value = replacement;
     }
 }

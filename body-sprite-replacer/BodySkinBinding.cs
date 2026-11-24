@@ -8,10 +8,14 @@ public sealed class BodySkinBinding : MonoBehaviour
     private readonly List<SkinSpriteReplacer> _replacers = new List<SkinSpriteReplacer>();
     private readonly List<SpriteRenderer> _renderers = new List<SpriteRenderer>();
     private IReadOnlyDictionary<string, Sprite> _sprites;
+    private Body _body;
 
     internal void Bind(Body body, IReadOnlyDictionary<string, Sprite> sprites)
     {
         if (body == null) return;
+
+        _body = body;
+        SpriteReplacerPlugin.EnsureDirectionWatcher(body);
 
         _renderers.Clear();
         foreach (SpriteRenderer renderer in body.GetComponentsInChildren<SpriteRenderer>(true))
@@ -35,7 +39,7 @@ public sealed class BodySkinBinding : MonoBehaviour
         {
             if (renderer == null) continue;
 
-            SkinSpriteReplacer replacer = SkinSpriteReplacer.Attach(renderer, _sprites);
+            SkinSpriteReplacer replacer = SkinSpriteReplacer.Attach(renderer, _sprites, _body);
             replacer.Apply();
             _replacers.Add(replacer);
         }

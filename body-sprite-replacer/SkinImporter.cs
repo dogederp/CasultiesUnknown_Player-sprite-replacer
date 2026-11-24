@@ -339,19 +339,15 @@ internal static class SkinImporter
         HashSet<string> allowedHead = AllowedHeadNames(species);
         HashSet<string> allowedWound = WoundNamesFor(species);
 
-        if (hasBody) CheckFolder(bodyDir, "Body", slot, species, allowedBody, bodySet, result);
-        if (hasHead) CheckFolder(headDir, "Head", slot, species, allowedHead, headSet, result);
-        if (hasWoundView) CheckFolder(woundViewDir, "WoundView", slot, species, allowedWound, woundViewSet, result);
+        if (hasBody) result.BodyCount = CheckFolder(bodyDir, "Body", slot, species, allowedBody, bodySet, result);
+        if (hasHead) result.HeadCount = CheckFolder(headDir, "Head", slot, species, allowedHead, headSet, result);
+        if (hasWoundView) result.WoundViewCount = CheckFolder(woundViewDir, "WoundView", slot, species, allowedWound, woundViewSet, result);
 
         foreach (string name in bodySet)
         {
             if (headSet.Contains(name))
                 result.Errors.Add("Sprite name appears in both Body and Head: " + name);
         }
-
-        result.BodyCount = bodySet.Count;
-        result.HeadCount = headSet.Count;
-        result.WoundViewCount = woundViewSet.Count;
 
         if (result.TotalCount == 0)
             result.Errors.Add("No PNG files with known sprite names were found.");
@@ -451,7 +447,7 @@ internal static class SkinImporter
 
                 HashSet<string> allowed = AllowedNamesFor(subfolder, species);
                 string[] knownPngs = pngs
-                    .Where(png => allowed.Contains(Path.GetFileNameWithoutExtension(png)))
+                    .Where(png => IsKnownPng(png, subfolder, allowed))
                     .ToArray();
                 if (knownPngs.Length == 0) continue;
 
@@ -465,8 +461,8 @@ internal static class SkinImporter
 
             string sourceWoundDir = Path.Combine(sourceDir, "WoundView");
             bool sourceHasWoundPngs = Directory.Exists(sourceWoundDir) &&
-                GetPngFiles(sourceWoundDir).Any(png => WoundNamesFor(species).Contains(
-                    Path.GetFileNameWithoutExtension(png)));
+                GetPngFiles(sourceWoundDir).Any(png => IsKnownPng(png, "WoundView",
+                    WoundNamesFor(species)));
             if (!sourceHasWoundPngs)
             {
                 string targetWoundDir = Path.Combine(targetRoot, "WoundView");
@@ -522,7 +518,9 @@ internal static class SkinImporter
         var headFiles = new List<string>();
         foreach (string png in GetPngFiles(bodyDir))
         {
-            if (headNames.Contains(Path.GetFileNameWithoutExtension(png))) headFiles.Add(png);
+            string name = Path.GetFileNameWithoutExtension(png);
+            if (SideSprites.TryParse(name, out string baseName, out _)) name = baseName;
+            if (headNames.Contains(name)) headFiles.Add(png);
         }
 
         if (headFiles.Count == 0)
@@ -567,9 +565,10 @@ internal static class SkinImporter
         }
     }
 
-    private static void CheckFolder(string folder, string subfolder, string slot, int species,
+    private static int CheckFolder(string folder, string subfolder, string slot, int species,
         HashSet<string> allowed, HashSet<string> present, SkinCheckResult result)
     {
+        int count = 0;
         string[] files;
         try
         {
@@ -578,7 +577,7 @@ internal static class SkinImporter
         catch (Exception ex)
         {
             result.Errors.Add("Cannot read " + subfolder + ": " + ex.Message);
-            return;
+            return 0;
         }
 
         foreach (string file in files)
@@ -586,16 +585,25 @@ internal static class SkinImporter
             if (!Path.GetExtension(file).Equals(".png", StringComparison.OrdinalIgnoreCase)) continue;
 
             string name = Path.GetFileNameWithoutExtension(file);
-            if (!allowed.Contains(name))
+            string baseName = name;
+            if ((subfolder == "Body" || subfolder == "Head") &&
+                SideSprites.TryParse(name, out string parsed, out _))
+            {
+                baseName = parsed;
+            }
+
+            if (!allowed.Contains(baseName))
             {
                 result.Warnings.Add("Unknown " + subfolder + " PNG skipped: " + name + ".");
                 continue;
             }
 
-            if (!present.Add(name)) continue;
-
-            CheckPng(file, name, subfolder, slot, species, result);
+            count++;
+            present.Add(baseName);
+            CheckPng(file, name, baseName, subfolder, slot, species, result);
         }
+
+        return count;
     }
 
     private static HashSet<string> AllowedNamesFor(string subfolder, int species)
@@ -605,7 +613,18 @@ internal static class SkinImporter
         return WoundNamesFor(species);
     }
 
-    private static void CheckPng(string file, string name, string subfolder, string slot,
+    private static bool IsKnownPng(string file, string subfolder, HashSet<string> allowed)
+    {
+        string name = Path.GetFileNameWithoutExtension(file);
+        if ((subfolder == "Body" || subfolder == "Head") &&
+            SideSprites.TryParse(name, out string baseName, out _))
+        {
+            name = baseName;
+        }
+        return allowed.Contains(name);
+    }
+
+    private static void CheckPng(string file, string name, string baseName, string subfolder, string slot,
         int species, SkinCheckResult result)
     {
         Texture2D tex = null;
@@ -622,7 +641,11 @@ internal static class SkinImporter
 
             int targetWidth;
             int targetHeight;
-            if (TryGetTargetSize(slot, species, subfolder, name, out targetWidth, out targetHeight))
+            bool sized = TryGetTargetSize(slot, species, subfolder, name, out targetWidth, out targetHeight);
+            if (!sized && !string.Equals(name, baseName, StringComparison.Ordinal))
+                sized = TryGetTargetSize(slot, species, subfolder, baseName, out targetWidth, out targetHeight);
+
+            if (sized)
             {
                 if (targetWidth != tex.width || targetHeight != tex.height)
                 {
